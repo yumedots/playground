@@ -44,8 +44,8 @@ end
 
 function shared.prepare_guest(g, os, find_tool, io)
     local total = os.time()
-    if not os.isfile(shared.tarball) then
-        os.raise("tarball missing, run: xmake fetch")
+    if not os.isfile(shared.tarball) or os.filesize(shared.tarball) == 0 then
+        shared.fetch_latest(g, os, io)
     end
     if not os.isdir(shared.builddir) then
         os.mkdir(shared.builddir)
