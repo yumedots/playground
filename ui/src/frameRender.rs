@@ -9,6 +9,8 @@ use gpui::prelude::*;
 use crate::app::Frame;
 use crate::geometry::window_size;
 
+const ICON_SCALE: f32 = 3.0;
+
 impl Render for Frame {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let viewport = window.viewport_size();
@@ -86,8 +88,8 @@ impl Render for Frame {
                     .bg(rgb(0x111111))
                     .text_color(rgb(0xffffff))
                     .child(img(ImageSource::Render(self.loading.frame().clone()))
-                        .w(px(self.loading.size().0 as f32))
-                        .h(px(self.loading.size().1 as f32)))
+                        .w(px(self.loading.size().0 as f32 * ICON_SCALE))
+                        .h(px(self.loading.size().1 as f32 * ICON_SCALE)))
                     .child("waiting for Linux graphical session")
                     .into_any_element(),
             }
