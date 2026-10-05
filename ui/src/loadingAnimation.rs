@@ -1,6 +1,6 @@
 use asefile::AsepriteFile;
 use gpui::RenderImage;
-use image::{Frame as ImageFrame, RgbaImage};
+use image::{imageops, Frame as ImageFrame, RgbaImage};
 use smallvec::SmallVec;
 use std::{
     sync::Arc,
@@ -8,6 +8,8 @@ use std::{
 };
 
 const ART: &[u8] = include_bytes!("../loading.aseprite");
+const ICON_SCALE: f32 = 3.0;
+const DISPLAY_SCALE: u32 = 2;
 
 const HOLDS: [u32; 25] = [
     200, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 500, 500, 90, 90, 90, 90, 90, 90, 90, 90, 90,
@@ -24,12 +26,19 @@ impl LoadingAnimation {
     pub(crate) fn load() -> Self {
         let file = AsepriteFile::read(ART).expect("the loading animation is not an aseprite file");
         let (width, height) = file.size();
+        let block = (ICON_SCALE * DISPLAY_SCALE as f32) as u32;
         let frames: Vec<Arc<RenderImage>> = (0..file.num_frames())
             .map(|index| {
                 let drawn = file.frame(index).image();
                 let (frame_width, frame_height) = drawn.dimensions();
-                let pixels = RgbaImage::from_raw(frame_width, frame_height, drawn.into_raw())
+                let source = RgbaImage::from_raw(frame_width, frame_height, drawn.into_raw())
                     .expect("a frame of the loading animation is not a whole image");
+                let pixels = imageops::resize(
+                    &source,
+                    frame_width * block,
+                    frame_height * block,
+                    imageops::FilterType::Nearest,
+                );
 
                 Arc::new(RenderImage::new(SmallVec::from_elem(
                     ImageFrame::new(pixels),
@@ -41,7 +50,10 @@ impl LoadingAnimation {
         assert!(!frames.is_empty(), "the loading animation has no frames");
         Self {
             frames,
-            size: (width as u32, height as u32),
+            size: (
+                (width as f32 * ICON_SCALE) as u32,
+                (height as f32 * ICON_SCALE) as u32,
+            ),
             started: Instant::now(),
         }
     }
@@ -111,8 +123,45 @@ mod tests {
             art.num_frames()
         );
         let loaded = LoadingAnimation::load();
-        assert_eq!(loaded.size(), (64, 64));
+        assert_eq!(loaded.size(), (192, 192));
         assert_eq!(loaded.frames.len() as u32, art.num_frames());
+    }
+
+    #[test]
+    fn every_frame_is_magnified_pixel_for_pixel_so_the_icon_stays_sharp() {
+        let art = AsepriteFile::read(ART).expect("the loading animation is not an aseprite file");
+        let loaded = LoadingAnimation::load();
+        let block = (ICON_SCALE * DISPLAY_SCALE as f32) as u32;
+
+        for index in 0..art.num_frames() {
+            let source = art.frame(index).image();
+            let (source_width, source_height) = source.dimensions();
+            let drawn = &loaded.frames[index as usize];
+            let pixels = drawn.as_bytes(0).expect("the frame carries pixels");
+            let texture_width = drawn.size(0).width.0 as u32;
+
+            assert_eq!(
+                texture_width,
+                source_width * block,
+                "frame {index} is not drawn at the size it is shown at"
+            );
+            assert_eq!(pixels.len(), (source_width * block * source_height * block * 4) as usize);
+
+            for (x, y, pixel) in source.enumerate_pixels() {
+                for offset in 0..block * block {
+                    let at = (((y * block + offset / block) * source_width * block)
+                        + x * block
+                        + offset % block)
+                        * 4;
+
+                    assert_eq!(
+                        &pixels[at as usize..at as usize + 4],
+                        pixel.0.as_slice(),
+                        "frame {index} pixel ({x}, {y}) was resampled instead of magnified"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
