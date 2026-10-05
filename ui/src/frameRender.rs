@@ -85,10 +85,10 @@ impl Render for Frame {
                     .justify_center()
                     .bg(rgb(0x111111))
                     .text_color(rgb(0xffffff))
-                    .child("waiting for Linux graphical session")
                     .child(img(ImageSource::Render(self.loading.frame().clone()))
                         .w(px(self.loading.size().0 as f32))
                         .h(px(self.loading.size().1 as f32)))
+                    .child("waiting for Linux graphical session")
                     .into_any_element(),
             }
         };
