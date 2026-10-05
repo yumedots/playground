@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+asefile = "0.3.8"
 async-std = "1.12"
 async-trait = "0.1"
 core-foundation = "0.10"

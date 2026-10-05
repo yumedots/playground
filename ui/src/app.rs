@@ -11,6 +11,7 @@ use crate::dbusSession::LAST_FRAME;
 use crate::frameDump::{dump_frame, spawn_surface_trace};
 use crate::geometry::{frame_shape, guest_position, WindowSize};
 use crate::guestSurface::GuestSurface;
+use crate::loadingAnimation::LoadingAnimation;
 use crate::input::{
     is_settings_toggle, keycode, ALT, CAPS_LOCK, CONTROL, Input, SHIFT, SUPER,
 };
@@ -54,6 +55,7 @@ pub(crate) struct Frame {
     pub(crate) surface_demo: bool,
     pub(crate) wanted: Option<WindowSize>,
     pub(crate) shape_note: Option<String>,
+    pub(crate) loading: LoadingAnimation,
 }
 
 impl Frame {
@@ -111,6 +113,7 @@ impl Frame {
             surface_demo: env::var_os("TRY_SURFACE").is_some(),
             wanted: None,
             shape_note: None,
+            loading: LoadingAnimation::load(),
         }
     }
 

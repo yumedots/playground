@@ -30,6 +30,8 @@ mod frameView;
 #[allow(non_snake_case)]
 mod guestSurface;
 #[allow(non_snake_case)]
+mod loadingAnimation;
+#[allow(non_snake_case)]
 mod mouseButtons;
 mod panel;
 #[allow(non_snake_case)]
