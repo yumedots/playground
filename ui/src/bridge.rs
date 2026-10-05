@@ -8,7 +8,7 @@ use crate::geometry::{display_max, WindowSize};
 use crate::host::run_host;
 use crate::input::Input;
 use crate::mouseButtons;
-use crate::paths::{project_dir, serial_log};
+use crate::paths::{disk_file, project_dir, serial_log};
 use crate::qemu::{qemu_command, Qemu};
 use crate::resize::{Resize, SharedResize};
 use crate::surfaceRing::SharedRing;
@@ -78,6 +78,12 @@ pub(crate) fn start_bridge(ring: SharedRing) -> Result<Bridge, String> {
 
     thread::spawn(move || {
         let serial_log = log;
+        if !disk_file().exists() {
+            if let Err(error) = run_host(&["build", "disk"]) {
+                let _ = events_tx.send(Event::Error(error));
+                return;
+            }
+        }
         if let Err(error) = OpenOptions::new()
             .write(true)
             .create(true)

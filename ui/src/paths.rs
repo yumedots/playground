@@ -6,6 +6,10 @@ pub(crate) fn state_dir() -> PathBuf {
         .unwrap_or_else(|| project_dir().join("state"))
 }
 
+pub(crate) fn disk_file() -> PathBuf {
+    state_dir().join("rootfs.qcow2")
+}
+
 pub(crate) fn project_dir() -> PathBuf {
     PathBuf::from(env::var("TRY_PROJECT_DIR").unwrap_or_else(|_| ".".into()))
 }
