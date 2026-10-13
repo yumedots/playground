@@ -5,7 +5,9 @@ import (
 	"crypto/md5"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -59,6 +61,9 @@ func installPackages(manifest string) error {
 	if err := configurePacman(); err != nil {
 		return err
 	}
+	if err := removeStalePacmanLock(); err != nil {
+		return err
+	}
 	if _, err := command("pacman", "-Qq"); err != nil {
 		if _, err := command("pacman-db-upgrade"); err != nil {
 			return err
@@ -77,14 +82,14 @@ func installPackages(manifest string) error {
 	for pass := 0; len(failed) > 0 && pass < 2; pass++ {
 		failed = installPackagesIndividually(failed)
 		if len(failed) > 0 {
-			if _, err := command("pacman", "-Syu", "--needed", "--noconfirm", "--noprogressbar"); err != nil {
+			if _, err := runPacman("-Syu", "--needed", "--noconfirm", "--noprogressbar"); err != nil {
 				logf("pacman system upgrade: %v", err)
 			}
 		}
 	}
 	if hyprland {
-		if _, err := command("pacman", "-S", "--needed", "--noconfirm", "--noprogressbar", "hyprland"); err != nil {
-			if _, fallbackErr := command("pacman", "-S", "--needed", "--noconfirm", "--noprogressbar", "--assume-installed", "libaquamarine.so=13-64", "hyprland"); fallbackErr != nil {
+		if _, err := runPacman("-S", "--needed", "--noconfirm", "--noprogressbar", "hyprland"); err != nil {
+			if _, fallbackErr := runPacman("-S", "--needed", "--noconfirm", "--noprogressbar", "--assume-installed", "libaquamarine.so=13-64", "hyprland"); fallbackErr != nil {
 				failed = append(failed, "hyprland")
 			}
 		}
@@ -95,12 +100,52 @@ func installPackages(manifest string) error {
 	return nil
 }
 
+func removeStalePacmanLock() error {
+	return removePacmanLock("/proc", "/var/lib/pacman/db.lck")
+}
+
+func removePacmanLock(processDir, lock string) error {
+	entries, err := os.ReadDir(processDir)
+	if err != nil {
+		return fmt.Errorf("read process table: %w", err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if _, err := strconv.Atoi(entry.Name()); err != nil {
+			continue
+		}
+		name, err := os.ReadFile(filepath.Join(processDir, entry.Name(), "comm"))
+		if err == nil && strings.TrimSpace(string(name)) == "pacman" {
+			return fmt.Errorf("pacman is already running as pid %s", entry.Name())
+		}
+	}
+	if _, err := os.Stat(lock); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("stat pacman lock: %w", err)
+	}
+	if err := os.Remove(lock); err != nil {
+		return fmt.Errorf("remove stale pacman lock: %w", err)
+	}
+	logf("removed stale pacman database lock")
+	return nil
+}
+
+func runPacman(args ...string) (string, error) {
+	if err := removeStalePacmanLock(); err != nil {
+		return "", err
+	}
+	return command("pacman", args...)
+}
+
 func installPackageBatch(packages []string) []string {
 	if len(packages) == 0 {
 		return nil
 	}
 	args := append([]string{"-Sy", "--needed", "--noconfirm", "--noprogressbar"}, packages...)
-	if _, err := command("pacman", args...); err == nil {
+	if _, err := runPacman(args...); err == nil {
 		return nil
 	}
 	return packages
@@ -109,7 +154,7 @@ func installPackageBatch(packages []string) []string {
 func installPackagesIndividually(packages []string) []string {
 	var failed []string
 	for _, packageName := range packages {
-		if _, err := command("pacman", "-S", "--needed", "--noconfirm", "--noprogressbar", packageName); err != nil {
+		if _, err := runPacman("-S", "--needed", "--noconfirm", "--noprogressbar", packageName); err != nil {
 			failed = append(failed, packageName)
 		}
 	}

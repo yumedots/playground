@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 type guestUser struct {
@@ -40,7 +41,7 @@ func normalizeGuestOwnership(user guestUser) error {
 		if _, err := os.Lstat(path); os.IsNotExist(err) {
 			continue
 		}
-		if err := os.Chown(path, 0, 0); err != nil {
+		if err := chownIfNeeded(path, 0, 0); err != nil {
 			return fmt.Errorf("chown %s: %w", path, err)
 		}
 	}
@@ -52,18 +53,67 @@ func normalizeGuestOwnership(user guestUser) error {
 			if err != nil {
 				return err
 			}
-			if info.Mode()&os.ModeSymlink != 0 {
-				return os.Lchown(current, 0, 0)
-			}
-			return os.Chown(current, 0, 0)
+			return chownIfNeeded(current, 0, 0)
 		}); err != nil {
 			return fmt.Errorf("chown %s: %w", path, err)
 		}
 	}
-	if err := os.Chown(user.home, user.uid, user.gid); err != nil {
+	if err := chownIfNeeded(user.home, user.uid, user.gid); err != nil {
 		return fmt.Errorf("chown %s: %w", user.home, err)
 	}
+	return restoreSpecialModes()
+}
+
+func chownIfNeeded(path string, uid, gid int) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok && int(stat.Uid) == uid && int(stat.Gid) == gid {
+		return nil
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return os.Lchown(path, uid, gid)
+	}
+	return os.Chown(path, uid, gid)
+}
+
+func restoreSpecialModes() error {
+	data, err := os.ReadFile("/usr/local/lib/try/special-modes.txt")
+	if err != nil {
+		return fmt.Errorf("read special mode manifest: %w", err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		mode, name, found := strings.Cut(line, "|")
+		if !found || name == "" {
+			continue
+		}
+		permissions, err := strconv.ParseUint(mode, 8, 32)
+		if err != nil {
+			return fmt.Errorf("parse special mode %q: %w", mode, err)
+		}
+		if strings.HasPrefix(name, "/") || filepath.Clean(name) != name || name == ".." || strings.HasPrefix(name, "../") {
+			return fmt.Errorf("invalid special mode path %q", name)
+		}
+		if err := os.Chmod(filepath.Join("/", name), specialMode(permissions)); err != nil {
+			return fmt.Errorf("restore mode for %s: %w", name, err)
+		}
+	}
 	return nil
+}
+
+func specialMode(permissions uint64) os.FileMode {
+	mode := os.FileMode(permissions & 0o777)
+	if permissions&0o4000 != 0 {
+		mode |= os.ModeSetuid
+	}
+	if permissions&0o2000 != 0 {
+		mode |= os.ModeSetgid
+	}
+	if permissions&0o1000 != 0 {
+		mode |= os.ModeSticky
+	}
+	return mode
 }
 
 func lookupUser(identifier string) (guestUser, error) {
