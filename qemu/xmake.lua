@@ -14,7 +14,8 @@ local function qemu_args(option, os, config, io)
     local g = shared.guest()
     local mac = os.host() == "macosx"
     local accel = mac and "hvf" or "kvm"
-    local gl = not option.get("no-gl")
+    local headless = option.get("headless")
+    local gl = not headless and not option.get("no-gl")
     local width, height = option.get("width"), option.get("height")
     if not width or not height then
         local screen_width, screen_height = shared.host_display(os, io)
@@ -53,7 +54,9 @@ local function qemu_args(option, os, config, io)
     if sharedir then
         table.join2(argv, {"-L", sharedir})
     end
-    if mac then
+    if headless then
+        table.join2(argv, {"-display", "none", "-device", "virtio-keyboard-pci", "-monitor", "unix:" .. shared.monitorsock .. ",server,nowait"})
+    elseif mac then
         table.join2(argv, {"-display", gl and "cocoa,gl=on,show-cursor=on,zoom-to-fit=on" or
             "cocoa,show-cursor=on,zoom-to-fit=on"})
     else
@@ -142,7 +145,7 @@ on_run(function ()
     local g = shared.guest()
     local printing = option.get("print-args")
     shared.state(os)
-    if not printing and not option.get("no-gl") then
+    if not printing and not option.get("no-gl") and not option.get("headless") then
         shared.qemu_fetch(os, io)
     end
     local program = shared.qemu_program(os, find_tool)
@@ -153,6 +156,9 @@ on_run(function ()
         shared.reset_disk(os, find_tool)
     end
     if not printing and not option.get("dry-run") then
+        if option.get("headless") and shared.headless_running(os) then
+            os.raise("headless guest already running, see xmake vmstatus")
+        end
         local started = os.time()
         local had_disk = os.isfile(shared.diskfile)
         shared.prepare_guest(g, os, find_tool, io)
@@ -180,6 +186,10 @@ on_run(function ()
         print(program .. " " .. table.concat(argv, " "))
         return
     end
+    if option.get("headless") then
+        shared.headless_start(os, program, argv, shared.qemu_env(os) or {})
+        return
+    end
     print("booting " .. g.arch .. " with " .. config.cores .. " cores, " .. config.mem .. ", log " .. shared.logfile)
     os.execv(program, argv, {envs = shared.qemu_env(os) or {}})
 end)
@@ -194,6 +204,7 @@ set_menu {
         {nil, "print-args", "k", nil, "Print program= and arg= lines for the launcher to run"},
         {nil, "fresh", "k", nil, "Rebuild the guest disk from cache before booting"},
         {nil, "no-gl", "k", nil, "Skip the virgl bottle and use a QEMU from PATH without virtio-gpu-gl"},
+        {nil, "headless", "k", nil, "Run in the background with no window; use xmake vmstatus, shot, vmstop"},
         {"n", "dry-run", "k", nil, "Print the QEMU command instead of running it"}
     }
 }
@@ -236,3 +247,5 @@ set_menu {
         {nil, "name", "kv", nil, "Snapshot name"}
     }
 }
+
+includes("headless.lua")
