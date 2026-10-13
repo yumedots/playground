@@ -10,6 +10,9 @@ const readyMarker = "\nTRY_DISPLAY_READY=1\n"
 
 func main() {
 	tell(readyMarker)
+	if exists("/var/lib/try/provisioned") {
+		tell("\nTRY_PROVISIONED=1\n")
+	}
 	connector := connectorPath()
 	applied := ""
 	lastSession := ""
