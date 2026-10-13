@@ -43,7 +43,8 @@ local function qemu_args(option, os, config, io)
         "-device", "usb-tablet",
         "-netdev", "user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22",
         "-device", "virtio-net-pci,netdev=net0",
-        "-serial", "file:" .. shared.logfile,
+        "-chardev", "socket,id=serial0,path=" .. shared.serialsock .. ",server=on,wait=off,logfile=" .. shared.logfile .. ",logappend=on",
+        "-serial", "chardev:serial0",
         "-no-reboot"
     }
     if config.audio == "on" then
@@ -55,7 +56,7 @@ local function qemu_args(option, os, config, io)
         table.join2(argv, {"-L", sharedir})
     end
     if headless then
-        table.join2(argv, {"-display", "none", "-device", "virtio-keyboard-pci", "-monitor", "unix:" .. shared.monitorsock .. ",server,nowait"})
+        table.join2(argv, {"-display", "none", "-monitor", "unix:" .. shared.monitorsock .. ",server,nowait"})
     elseif mac then
         table.join2(argv, {"-display", gl and "cocoa,gl=on,show-cursor=on,zoom-to-fit=on" or
             "cocoa,show-cursor=on,zoom-to-fit=on"})

@@ -1,26 +1,16 @@
 local shared = shared
 
-local MONITOR_PY = "import socket,sys\n" ..
-    "s=socket.socket(socket.AF_UNIX)\n" ..
-    "s.settimeout(20)\n" ..
-    "s.connect(sys.argv[1])\n" ..
-    "def prompt(): \n" ..
-    "    b=b''\n" ..
-    "    while not b.endswith(b'(qemu) '):\n" ..
-    "        c=s.recv(4096)\n" ..
-    "        if not c: break\n" ..
-    "        b+=c\n" ..
-    "prompt()\n" ..
-    "s.sendall((sys.argv[2]+'\\n').encode())\n" ..
-    "prompt()\n" ..
-    "s.close()\n"
-
 local function quote(text)
     return "'" .. text:gsub("'", "'\\''") .. "'"
 end
 
+local function headless_helper(os)
+    return path.join(shared.projectdir, "qemu/headless.py")
+end
+
 function shared.monitor(os, command)
-    os.iorunv("python3", {"-c", MONITOR_PY, shared.monitorsock, command})
+    local result = os.iorunv("python3", {headless_helper(os), "monitor", shared.monitorsock, command})
+    return result
 end
 
 function shared.headless_pid(os)
@@ -31,32 +21,37 @@ function shared.headless_pid(os)
 end
 
 function shared.headless_running(os)
-    local pid = shared.headless_pid(os)
-    if not pid or pid == "" then
+    if not os.isfile(shared.monitorsock) then
         return false
     end
-    return os.execv("kill", {"-0", pid}, {try = true}) == 0
+    return os.execv("python3", {headless_helper(os), "running", shared.monitorsock}, {try = true}) == 0
 end
 
-local LAUNCH_PY = "import subprocess,sys\n" ..
-    "p=subprocess.Popen(sys.argv[3:],stdin=subprocess.DEVNULL,stdout=open(sys.argv[1],'w'),stderr=subprocess.STDOUT,start_new_session=True)\n" ..
-    "open(sys.argv[2],'w').write(str(p.pid))\n"
-
 function shared.headless_start(os, program, argv, envs)
+    if shared.headless_running(os) then
+        os.raise("headless guest already running, see xmake vmstatus")
+    end
     os.mkdir(shared.builddir)
+    os.rm(shared.pidfile)
+    os.rm(shared.monitorsock)
+    os.rm(shared.serialsock)
+    os.rm(shared.logfile)
     local parts = {"env"}
     for key, value in pairs(envs) do
         table.insert(parts, quote(key .. "=" .. value))
     end
-    table.insert(parts, "python3 -c " .. quote(LAUNCH_PY))
+    table.insert(parts, quote("python3"))
+    table.insert(parts, quote(headless_helper(os)))
+    table.insert(parts, quote("launch"))
     table.insert(parts, quote(shared.builddir .. "/headless.err"))
     table.insert(parts, quote(shared.pidfile))
+    table.insert(parts, quote(shared.monitorsock))
     table.insert(parts, quote(program))
     for _, value in ipairs(argv) do
         table.insert(parts, quote(value))
     end
-    os.iorunv("sh", {"-c", table.concat(parts, " ")})
-    print("headless guest started, pid " .. shared.headless_pid(os) .. ", log " .. shared.logfile)
+    local pid = os.iorunv("sh", {"-c", table.concat(parts, " ")})
+    print("headless guest started, pid " .. pid:trim() .. ", log " .. shared.logfile)
 end
 
 task("vmstatus")
@@ -72,7 +67,7 @@ on_run(function ()
     print("boot      " .. (log:find("login:", 1, true) and "login prompt up" or "not at login yet"))
     if log:find("provisioning failed", 1, true) then
         print("ready     provisioning FAILED, see /var/log/try-firstBoot.log in the guest")
-    elseif log:find("finish provisioning", 1, true) and log:find("\u{2713} finish provisioning", 1, true) then
+    elseif (log:find("finish provisioning", 1, true) and log:find("\u{2713} finish provisioning", 1, true)) or log:find("TRY_PROVISIONED=1", 1, true) then
         print("ready     provisioning done")
     else
         print("ready     provisioning not finished")
@@ -124,9 +119,11 @@ on_run(function ()
         print("vm        already stopped")
         return
     end
-    shared.monitor(os, "quit")
+    local result = os.iorunv("python3", {headless_helper(os), "stop", shared.monitorsock, shared.pidfile})
     os.rm(shared.pidfile)
-    print("vm        stopped")
+    os.rm(shared.monitorsock)
+    os.rm(shared.serialsock)
+    print("vm        " .. result:trim())
 end)
 set_menu {
     usage = "xmake vmstop",
