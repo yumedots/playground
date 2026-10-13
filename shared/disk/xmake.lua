@@ -29,7 +29,7 @@ end
 function shared.provision_key(os)
     local stamp = shared.tarball .. " " .. tostring(os.filesize(shared.tarball)) .. " " .. tostring(os.mtime(shared.tarball))
     local lines = {shared.disksize, stamp}
-    local patterns = {path.join(shared.projectdir, "guest/**")}
+    local patterns = {path.join(shared.projectdir, "guest/**"), path.join(shared.projectdir, "shared/rootfs/xmake.lua")}
     if shared.dotfiles then
         patterns[#patterns + 1] = path.join(shared.dotfiles, "**")
     end
@@ -70,6 +70,7 @@ function shared.prepare_guest(g, os, find_tool, io)
     os.cp(firstboot, path.join(prov, "firstboot"))
     os.cp(trydisplay, path.join(prov, "tryDisplay"))
     os.cp(path.join(shared.projectdir, "guest/packages.txt"), prov)
+    io.writefile(path.join(prov, "special-modes.txt"), shared.special_modes(os, shared.tarball))
     if not shared.dotfiles or not os.isdir(shared.dotfiles) then
         os.raise("dotfiles source missing or submodule not populated: " .. tostring(shared.dotfiles))
     end

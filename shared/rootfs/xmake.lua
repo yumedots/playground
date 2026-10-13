@@ -65,6 +65,11 @@ function shared.tree_current(os, io)
     return stamp ~= "" and stamp == md5 and os.isfile(path.join(shared.rootdir, "etc/passwd"))
 end
 
+function shared.special_modes(os, tarball)
+    local script = "import posixpath,sys,tarfile; t=tarfile.open(sys.argv[1], 'r:gz'); [print('%04o|%s' % (m.mode & 0o7777, n)) for m in t if m.mode & 0o7000 for n in [posixpath.normpath(m.name)] if n not in ('.','..') and not n.startswith('../') and not n.startswith('/')]; t.close()"
+    return os.iorunv("python3", {"-c", script, tarball})
+end
+
 function shared.swap_tree(os, io)
     os.execv("sh", {"-c", "rm -rf " .. shared.rootdir .. " && mv " .. shared.tree_new .. " " .. shared.rootdir})
     os.execv("chmod", {"-R", "u+rwX", shared.rootdir})
