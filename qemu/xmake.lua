@@ -54,7 +54,7 @@ local function qemu_args(option, os, config, io)
         table.join2(argv, {"-L", sharedir})
     end
     if mac then
-        table.join2(argv, {"-display", gl and "cocoa,gl=es,show-cursor=on,zoom-to-fit=on" or
+        table.join2(argv, {"-display", gl and "cocoa,gl=on,show-cursor=on,zoom-to-fit=on" or
             "cocoa,show-cursor=on,zoom-to-fit=on"})
     else
         table.join2(argv, {"-display", gl and "gtk,gl=on" or "gtk"})
@@ -78,7 +78,7 @@ on_run(function ()
         print("qemu      missing qemu-system-" .. g.arch)
     end
     if os.host() == "macosx" then
-        print("gpu       " .. (shared.qemu_keg(os) and "virtio-gpu-gl-pci, hvf, cocoa,gl=es, bottle in " .. shared.qemudir or
+        print("gpu       " .. (shared.qemu_keg(os) and "virtio-gpu-gl-pci, hvf, cocoa,gl=on, bottle in " .. shared.qemudir or
             "no virgl bottle (arm64 tahoe only), use --no-gl with a QEMU from PATH"))
     else
         print("gpu       virtio-gpu-gl-pci, kvm, gtk,gl=on, system qemu-system-" .. g.arch)
