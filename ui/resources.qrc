@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="loading.aseprite">loading.aseprite</file>
+    </qresource>
+</RCC>
