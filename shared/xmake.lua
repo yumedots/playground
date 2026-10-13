@@ -42,12 +42,12 @@ shared.qemubottles = {
     {file = "qemu-master.arm64_tahoe.tgz",
      release = "https://github.com/yumedots/qemu/releases/download/qemu-7d46e13418ea8f3cae9fed5b8c6148877f1b5255",
      sha256 = "260d89ed4b544248fc072f68ea91e40ef1669b25a9f352e83453bfbc1eea35cf"},
-    {file = "virglrenderer-main.arm64_tahoe.bottle.1.tar.gz", opt = "virglrenderer",
-     sha256 = "4d74f6530e78f4f72de1599e9a648b0d124e3d82e1b06dd36d9be76b039704b6"},
-    {file = "libangle-main.20260909.3e88857d9.arm64_tahoe.bottle.1.tar.gz", opt = "libangle",
-     sha256 = "30374136fe75067102d38a40ef31465da16220b3264c39bb142061fb6605122f"},
-    {file = "libepoxy-angle-master.arm64_tahoe.bottle.1.tar.gz", opt = "libepoxy-angle",
-     sha256 = "c1918029ba498558619ab5091b0f98a5d6ba46f3bb6040307619947c9ff7e7ec"}
+    {file = "virglrenderer-main.arm64_golden_gate.bottle.tar.gz", opt = "virglrenderer",
+     sha256 = "0db69830b601d38a2463a7545eedcd9a514b8974ba7e60ee38a739e196fe1f27"},
+    {file = "libangle-main.arm64_golden_gate.bottle.tar.gz", opt = "libangle",
+     sha256 = "a713cae333463de4e3fcad130507cf0de45c725bb77981252b47c276499fcaee"},
+    {file = "libepoxy-angle-master.arm64_golden_gate.bottle.tar.gz", opt = "libepoxy-angle",
+     sha256 = "a5bdd5810402baf826a427da4ab10b6236cbb23fe72ed77be635f9d2cf2045ab"}
 }
 
 function shared.settings(os, io)
