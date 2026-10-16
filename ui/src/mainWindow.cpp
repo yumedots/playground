@@ -11,7 +11,11 @@ namespace {
 
 QByteArray loadArt()
 {
-    return QFile(":/loading.aseprite").readAll();
+    QFile art(":/loading.aseprite");
+    if (!art.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return art.readAll();
 }
 
 }
