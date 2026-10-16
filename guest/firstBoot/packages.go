@@ -201,9 +201,9 @@ func configurePacman() error {
 		if _, err := command("pacman-key", "--init"); err != nil {
 			return err
 		}
-		if _, err := command("pacman-key", "--populate", "archlinuxarm"); err != nil {
-			return err
-		}
+	}
+	if _, err := command("pacman-key", "--populate", "archlinuxarm"); err != nil {
+		return err
 	}
 	return nil
 }
