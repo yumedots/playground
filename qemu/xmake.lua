@@ -144,9 +144,13 @@ on_run(function ()
       cp %s %s
       chmod 755 %s
       xattr -c %s
+    ]], dest, built, dest, dest, dest)})
+    shared.qemu_patch(os, keg, dest)
+    os.execv("sh", {"-c", string.format([[
+      set -e
       install_name_tool -add_rpath %s %s 2>/dev/null || true
       codesign --force --sign - --entitlements %s %s
-    ]], dest, built, dest, dest, dest, path.join(keg, "opt/libangle/lib"), dest, entitlements, dest)})
+    ]], path.join(keg, "opt/libangle/lib"), dest, entitlements, dest)})
     print("installed " .. dest)
 end)
 set_menu {
