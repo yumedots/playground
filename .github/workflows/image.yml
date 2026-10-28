@@ -48,9 +48,11 @@ jobs:
           sha256sum base.qcow2 Image initramfs-linux.img > image.sha256
           ls -lh
       - name: publish
-        uses: actions/upload-artifact@v7
-        with:
-          name: image
-          path: .cache/image/
-          compression-level: 0
-          retention-days: 90
+        env:
+          GH_TOKEN: ${{ secrets.IMAGES_TOKEN }}
+          IMAGES_REPO: ${{ github.repository_owner }}/try-images
+        run: |
+          gh release view image --repo "$IMAGES_REPO" >/dev/null 2>&1 ||
+            gh release create image --repo "$IMAGES_REPO" --title "guest image" \
+              --notes "Plain Arch Linux ARM guest image. Dotfiles and packages are injected at boot."
+          gh release upload image --repo "$IMAGES_REPO" --clobber .cache/image/*

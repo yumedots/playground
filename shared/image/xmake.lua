@@ -11,41 +11,22 @@ function shared.image_inputs(os, io)
 end
 
 function shared.image_repo(os)
+    if shared.imagerepo then
+        return shared.imagerepo
+    end
     local remote = os.iorunv("git", {"remote", "get-url", "origin"}):trim()
-    local repo = remote:match("github%.com[:/]([%w._%-/]+)")
-    return repo and repo:gsub("%.git$", "") or nil
+    local owner = remote:match("github%.com[:/]([%w._%-]+)/")
+    return owner and (owner .. "/try-images") or nil
 end
 
 function shared.image_download(os, io, repo)
-    local gh = os.iorunv("sh", {"-c", "command -v gh 2>/dev/null || true"}):trim()
-    if gh == "" then
-        return false, "gh is not installed, it downloads the image artifact (brew install gh)"
-    end
-    if os.execv(gh, {"auth", "status"}, {try = true}) ~= 0 then
-        return false, "gh is not logged in, the image artifact needs it (gh auth login)"
-    end
-    local run = os.iorunv("sh", {"-c", gh .. " run list --repo " .. repo ..
-        " --workflow=image --status success --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || true"}):trim()
-    if run == "" then
-        return false, "the image workflow has no successful run yet"
-    end
-    local dir = path.join(shared.cachedir, "image-download")
-    if os.isdir(dir) then
-        os.rmdir(dir)
-    end
-    os.mkdir(dir)
-    print("download the image artifact from run " .. run)
-    if os.execv(gh, {"run", "download", run, "--repo", repo, "--name", "image", "--dir", dir}, {try = true}) ~= 0 then
-        os.rmdir(dir)
-        return false, "the image artifact download failed"
-    end
-    local sums = path.join(dir, "image.sha256")
-    if not os.isfile(sums) then
-        os.rmdir(dir)
-        return false, "the image artifact has no image.sha256"
+    local base = "https://github.com/" .. repo .. "/releases/download/image/"
+    local sums = os.iorunv("sh", {"-c", "curl -fsSL --max-time 30 " .. base .. "image.sha256 2>/dev/null || true"})
+    if sums:trim() == "" then
+        return false, "no " .. repo .. "/releases/tag/image release yet (run the image workflow)"
     end
     local expected = {}
-    for line in io.readfile(sums):gmatch("[^\r\n]+") do
+    for line in sums:gmatch("[^\r\n]+") do
         local sha, name = line:match("^(%x+)%s+%*?(.+)$")
         if sha then
             expected[name] = sha
@@ -56,27 +37,21 @@ function shared.image_download(os, io, repo)
         {name = "Image", dest = shared.kernel},
         {name = "initramfs-linux.img", dest = shared.initrd}
     }
-    local missing = {}
     for _, asset in ipairs(wanted) do
-        if not os.isfile(path.join(dir, asset.name)) then
-            missing[#missing + 1] = asset.name
+        if not expected[asset.name] then
+            return false, "the " .. repo .. " image release has no " .. asset.name
         end
-    end
-    if #missing > 0 then
-        os.rmdir(dir)
-        return false, "the image artifact has no " .. table.concat(missing, ", ")
     end
     os.mkdir(path.directory(shared.kernel))
     for _, asset in ipairs(wanted) do
-        local actual = hash.sha256(path.join(dir, asset.name))
+        print("download " .. asset.name)
+        os.execv("curl", {"-fL", "--retry", "3", "-o", asset.dest, base .. asset.name})
+        local actual = hash.sha256(asset.dest)
         if actual ~= expected[asset.name] then
-            os.rmdir(dir)
-            return false, "the image artifact checksum for " .. asset.name .. " does not match image.sha256"
+            os.rm(asset.dest)
+            return false, asset.name .. " does not match the sha256 in " .. repo .. "/releases/tag/image"
         end
-        os.rm(asset.dest)
-        os.mv(path.join(dir, asset.name), asset.dest)
     end
-    os.rmdir(dir)
     return true
 end
 
@@ -149,7 +124,7 @@ function shared.image_ensure(os, find_tool, io)
         downloaded, why = shared.image_download(os, io, repo)
         if downloaded then
             io.writefile(shared.imagekeyfile, shared.image_inputs(os, io) .. "\n")
-            print("image downloaded from the " .. repo .. " image workflow artifact")
+            print("image downloaded from " .. repo .. "/releases/tag/image")
             return
         end
     elseif repo and os.isfile(shared.imagefile) then
