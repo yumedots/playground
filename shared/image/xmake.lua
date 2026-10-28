@@ -17,14 +17,39 @@ function shared.image_repo(os)
 end
 
 function shared.image_download(os, io, repo)
-    local listing = os.iorunv("sh", {"-c", "curl -fsSL https://api.github.com/repos/" .. repo ..
-        "/releases/tags/image 2>/dev/null || true"})
-    if listing:trim() == "" then
-        return false, "no " .. repo .. "/releases/tag/image release (run the image workflow)"
+    local gh = os.iorunv("sh", {"-c", "command -v gh 2>/dev/null || true"}):trim()
+    if gh == "" then
+        return false, "gh is not installed, it downloads the image artifact (brew install gh)"
     end
-    local assets = {}
-    for sha, url in listing:gmatch('"digest":%s*"sha256:(%x+)"%s*,.-"browser_download_url":%s*"([^"]+)"') do
-        assets[path.filename(url)] = {sha = sha, url = url}
+    if os.execv(gh, {"auth", "status"}, {try = true}) ~= 0 then
+        return false, "gh is not logged in, the image artifact needs it (gh auth login)"
+    end
+    local run = os.iorunv("sh", {"-c", gh .. " run list --repo " .. repo ..
+        " --workflow=image --status success --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null || true"}):trim()
+    if run == "" then
+        return false, "the image workflow has no successful run yet"
+    end
+    local dir = path.join(shared.cachedir, "image-download")
+    if os.isdir(dir) then
+        os.rmdir(dir)
+    end
+    os.mkdir(dir)
+    print("download the image artifact from run " .. run)
+    if os.execv(gh, {"run", "download", run, "--repo", repo, "--name", "image", "--dir", dir}, {try = true}) ~= 0 then
+        os.rmdir(dir)
+        return false, "the image artifact download failed"
+    end
+    local sums = path.join(dir, "image.sha256")
+    if not os.isfile(sums) then
+        os.rmdir(dir)
+        return false, "the image artifact has no image.sha256"
+    end
+    local expected = {}
+    for line in io.readfile(sums):gmatch("[^\r\n]+") do
+        local sha, name = line:match("^(%x+)%s+%*?(.+)$")
+        if sha then
+            expected[name] = sha
+        end
     end
     local wanted = {
         {name = "base.qcow2", dest = shared.imagefile},
@@ -33,23 +58,25 @@ function shared.image_download(os, io, repo)
     }
     local missing = {}
     for _, asset in ipairs(wanted) do
-        if not assets[asset.name] then
+        if not os.isfile(path.join(dir, asset.name)) then
             missing[#missing + 1] = asset.name
         end
     end
     if #missing > 0 then
-        return false, "the image release has no " .. table.concat(missing, ", ")
+        os.rmdir(dir)
+        return false, "the image artifact has no " .. table.concat(missing, ", ")
     end
     os.mkdir(path.directory(shared.kernel))
     for _, asset in ipairs(wanted) do
-        print("download " .. asset.name)
-        os.execv("curl", {"-fL", "--retry", "3", "-o", asset.dest, assets[asset.name].url})
-        local actual = hash.sha256(asset.dest)
-        if actual ~= assets[asset.name].sha then
-            os.rm(asset.dest)
-            os.raise("image asset mismatch " .. asset.name .. ": want " .. assets[asset.name].sha .. ", got " .. actual)
+        local actual = hash.sha256(path.join(dir, asset.name))
+        if actual ~= expected[asset.name] then
+            os.rmdir(dir)
+            return false, "the image artifact checksum for " .. asset.name .. " does not match image.sha256"
         end
+        os.rm(asset.dest)
+        os.mv(path.join(dir, asset.name), asset.dest)
     end
+    os.rmdir(dir)
     return true
 end
 
@@ -122,7 +149,7 @@ function shared.image_ensure(os, find_tool, io)
         downloaded, why = shared.image_download(os, io, repo)
         if downloaded then
             io.writefile(shared.imagekeyfile, shared.image_inputs(os, io) .. "\n")
-            print("image downloaded from " .. repo .. "/releases/tag/image")
+            print("image downloaded from the " .. repo .. " image workflow artifact")
             return
         end
     elseif repo and os.isfile(shared.imagefile) then
