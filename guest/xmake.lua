@@ -36,36 +36,23 @@ set_menu {
     description = "Download the latest Arch Linux ARM tarball and the pinned qemu-virgl bottles"
 }
 
-task("guest")
+task("image")
 on_run(function ()
     import("lib.detect.find_tool")
-    shared.prepare_guest(shared.guest(), os, find_tool, io)
+    shared.image_build(os, find_tool, io)
 end)
 set_menu {
-    usage = "xmake guest",
-    description = "Inject guest provisioning and build the rootfs.qcow2 disk from the tarball"
+    usage = "xmake image",
+    description = "Build the plain base image from the tarball (CI publishes it as the image release)"
 }
 
 task("reset")
 on_run(function ()
     import("lib.detect.find_tool")
-    shared.reset_disk(os, find_tool)
-    for _, kept in ipairs({shared.tarball, shared.rootdir, shared.settingsfile}) do
-        if os.exists(kept) then
-            print("kept " .. kept)
-        end
-    end
-    print("next: xmake run (no rebuild, the disk is already back at its first-boot state)")
+    shared.prepare(os, find_tool, io, true)
+    print("next: xmake run (fresh overlay, the base image and payload stay cached)")
 end)
 set_menu {
     usage = "xmake reset",
-    description = "Roll the guest disk back to its first-boot state and keep every cache"
+    description = "Drop the disk overlay and keep the base image, payload and caches"
 }
-
-target("disk")
-set_kind("phony")
-set_default(false)
-on_build(function (target)
-    import("lib.detect.find_tool")
-    shared.prepare_guest(shared.guest(), os, find_tool, io)
-end)

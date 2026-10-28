@@ -31,10 +31,11 @@ local function qemu_args(option, os, config, io)
         "-cpu", "host",
         "-smp", config.cores,
         "-m", config.mem,
-        "-kernel", path.join(shared.rootdir, g.kernel),
-        "-initrd", path.join(shared.rootdir, g.initrd),
+        "-kernel", shared.kernel,
+        "-initrd", shared.initrd,
         "-append", "root=/dev/vda rw console=tty0 console=ttyAMA0",
         "-drive", "if=virtio,format=qcow2,file=" .. shared.diskfile,
+        "-drive", "if=virtio,format=raw,readonly=on,file=" .. shared.payloadfile,
         "-device", (gl and "virtio-gpu-gl-pci" or "virtio-gpu-pci") ..
             ",xres=" .. width .. ",yres=" .. height,
         "-device", "virtio-rng-pci",
@@ -58,8 +59,8 @@ local function qemu_args(option, os, config, io)
     if headless then
         table.join2(argv, {"-display", "none", "-monitor", "unix:" .. shared.monitorsock .. ",server,nowait"})
     elseif mac then
-        table.join2(argv, {"-display", gl and "cocoa,gl=on,show-cursor=on,zoom-to-fit=on" or
-            "cocoa,show-cursor=on,zoom-to-fit=on"})
+        table.join2(argv, {"-display", gl and "cocoa,gl=on,zoom-to-fit=on,full-grab=on,swap-opt-cmd=on" or
+            "cocoa,zoom-to-fit=on,full-grab=on,swap-opt-cmd=on"})
     else
         table.join2(argv, {"-display", gl and "gtk,gl=on" or "gtk"})
     end
@@ -99,14 +100,16 @@ on_run(function ()
     else
         print("tarball   missing, run xmake fetch")
     end
-    print("rootfs    " .. (os.isfile(path.join(shared.rootdir, "etc/passwd")) and "extracted" or "run xmake build disk"))
+    print("rootfs    " .. (os.isfile(path.join(shared.rootdir, "etc/passwd")) and "extracted" or "not extracted"))
+    print("image     " .. (os.isfile(shared.imagefile) and (shared.image_ready(os, io) and "base.qcow2 current" or "base.qcow2 stale, xmake image") or "missing, xmake vm builds it"))
+    print("payload   " .. (os.isfile(shared.payloadfile) and "dotfiles.raw built" or "missing, built on the next boot"))
     if os.isfile(shared.diskfile) then
         local snapshots = os.iorunv("sh", {"-c", shared.qemu_img(os, find_tool) .. " snapshot -l '" .. shared.diskfile .. "' 2>/dev/null || true"})
-        print("disk      qcow2" .. (snapshots:trim() ~= "" and "\n" .. snapshots or " busy (a guest is running)"))
+        print("disk      overlay qcow2" .. (snapshots:trim() ~= "" and "\n" .. snapshots or ""))
     else
-        print("disk      missing, run xmake build disk")
+        print("disk      overlay missing, made on the next boot")
     end
-    print("dotfiles  " .. (shared.dotfiles or "none") .. " -> baked into disk")
+    print("dotfiles  " .. (shared.dotfiles or "none") .. " -> injected at boot from the payload disk")
     print("log       " .. shared.logfile)
     if program and os.isfile(shared.diskfile) then
         print("run       " .. program .. " " .. table.concat(qemu_args(option, os, qemu_config(option, os, io, program), io), " "))
@@ -114,7 +117,44 @@ on_run(function ()
 end)
 set_menu {
     usage = "xmake doctor",
-    description = "Show host, tools, tarball, disk, baked dotfiles and snapshots"
+    description = "Show host, tools, base image, payload disk, overlay and snapshots"
+}
+
+task("vminstall")
+on_run(function ()
+    import("core.base.option")
+    local repo = option.get("repo") or os.getenv("HOME") .. "/qemu"
+    local keg = shared.qemu_keg(os)
+    if not keg then
+        os.raise("no arm64 tahoe keg on this host")
+    end
+    local arch = shared.guest().arch
+    local built = path.join(repo, "build", "qemu-system-" .. arch)
+    if not os.isfile(built) then
+        os.raise("missing " .. built .. ", build the fork first (ninja in its build dir)")
+    end
+    local entitlements = path.join(repo, "accel", "hvf", "entitlements.plist")
+    if not os.isfile(entitlements) then
+        os.raise("missing " .. entitlements)
+    end
+    local dest = path.join(keg, "bin", "qemu-system-" .. arch)
+    os.execv("sh", {"-c", string.format([[
+      set -e
+      rm -f %s
+      cp %s %s
+      chmod 755 %s
+      xattr -c %s
+      install_name_tool -add_rpath %s %s 2>/dev/null || true
+      codesign --force --sign - --entitlements %s %s
+    ]], dest, built, dest, dest, dest, path.join(keg, "opt/libangle/lib"), dest, entitlements, dest)})
+    print("installed " .. dest)
+end)
+set_menu {
+    usage = "xmake vminstall [-r|--repo=DIR]",
+    description = "Install the fork build into the qemu-virgl keg (rpath + hvf entitlement fix)",
+    options = {
+        {"r", "repo", "kv", nil, "Fork repo with build/qemu-system-<arch>, defaults to ~/qemu"}
+    }
 }
 
 function shared.host_display(os, io)
@@ -146,30 +186,21 @@ on_run(function ()
     local g = shared.guest()
     local printing = option.get("print-args")
     shared.state(os)
-    if not printing and not option.get("no-gl") and not option.get("headless") then
+    if option.get("headless") and shared.headless_running(os) then
+        os.raise("headless guest already running, see xmake vmstatus")
+    end
+    local started = os.time()
+    shared.prepare(os, find_tool, io, option.get("fresh"))
+    if os.time() - started > 2 then
+        print("guest image in " .. (os.time() - started) .. "s")
+        print("first boot: the guest installs its packages, the login screen appears after that")
+    end
+    if not option.get("no-gl") and not option.get("headless") then
         shared.qemu_fetch(os, io)
     end
     local program = shared.qemu_program(os, find_tool)
     if not program then
         os.raise("qemu-system-" .. g.arch .. " is not in PATH")
-    end
-    if option.get("fresh") then
-        shared.reset_disk(os, find_tool)
-    end
-    if not printing and not option.get("dry-run") then
-        if option.get("headless") and shared.headless_running(os) then
-            os.raise("headless guest already running, see xmake vmstatus")
-        end
-        local started = os.time()
-        local had_disk = os.isfile(shared.diskfile)
-        shared.prepare_guest(g, os, find_tool, io)
-        if not had_disk then
-            print("disk setup in " .. (os.time() - started) .. "s")
-            print("first boot: the guest installs its packages for ~2 min, the login screen appears after that")
-        end
-    end
-    if not os.isfile(path.join(shared.rootdir, g.kernel)) then
-        os.raise("guest kernel missing, run: xmake build disk")
     end
     local config = qemu_config(option, os, io, program)
     local argv = qemu_args(option, os, config, io)
@@ -203,7 +234,7 @@ set_menu {
         {nil, "mem", "kv", nil, "Guest RAM, defaults to the saved setting"},
         {nil, "cpus", "kv", nil, "Guest cores, defaults to the saved setting"},
         {nil, "print-args", "k", nil, "Print program= and arg= lines for the launcher to run"},
-        {nil, "fresh", "k", nil, "Rebuild the guest disk from cache before booting"},
+        {nil, "fresh", "k", nil, "Drop the disk overlay and start again from the base image"},
         {nil, "no-gl", "k", nil, "Skip the virgl bottle and use a QEMU from PATH without virtio-gpu-gl"},
         {nil, "headless", "k", nil, "Run in the background with no window; use xmake vmstatus, shot, vmstop"},
         {"n", "dry-run", "k", nil, "Print the QEMU command instead of running it"}

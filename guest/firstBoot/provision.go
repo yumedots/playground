@@ -51,7 +51,7 @@ func provision(state *runtimeState) ([]step, []action) {
 			return installPackages(packages)
 		},
 		func() error {
-			sources, err := dotfileSources("/usr/local/lib/try/dotfiles")
+			sources, err := dotfileSources("/run/payload/dotfiles")
 			if err != nil {
 				return err
 			}

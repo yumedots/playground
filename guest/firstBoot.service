@@ -1,9 +1,9 @@
 [Unit]
 Description=try guest provisioning
-After=network-online.target local-fs.target
-Wants=network-online.target
-Conflicts=getty@tty1.service
+After=network-online.target local-fs.target run-payload.mount
+Wants=network-online.target run-payload.mount
 Requires=dev-tty1.device
+Conflicts=getty@tty1.service
 
 [Service]
 Type=oneshot

@@ -1,5 +1,4 @@
 #include "guestProcess.h"
-#include "paths.h"
 
 #include <QFile>
 
@@ -49,11 +48,6 @@ void GuestProcess::start()
         return;
     }
     setState(GuestState::Preparing, "starting the guest");
-    if (!QFile::exists(diskFile())) {
-        setState(GuestState::Preparing, "building the guest disk, the first run takes a while");
-        runXmake({"build", "disk"}, [this](const QString &) { printArgs(); });
-        return;
-    }
     printArgs();
 }
 

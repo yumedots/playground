@@ -1,0 +1,61 @@
+name: image
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "guest/**"
+      - "shared/**"
+      - "xmake.lua"
+  schedule:
+    - cron: "0 4 1 * *"
+
+permissions:
+  contents: write
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cache/archlinuxarm.tar.gz
+            .cache/archlinuxarm.md5
+            .cache/mirror.url
+            ~/go/pkg/mod
+          key: archlinuxarm-tarball
+      - name: tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends e2fsprogs qemu-utils qt6-base-dev pigz
+      - name: build the plain image
+        run: xmake image
+      - name: stage the release assets
+        run: |
+          mkdir -p .cache/image
+          qemu-img convert -c -O qcow2 .cache/base.qcow2 .cache/image/base.qcow2
+          cp .cache/boot/Image .cache/boot/initramfs-linux.img .cache/image/
+          cd .cache/image
+          sha256sum base.qcow2 Image initramfs-linux.img > image.sha256
+          ls -lh
+      - name: publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: image
+          name: guest image
+          body: Plain Arch Linux ARM guest image, rebuilt whenever guest/ or shared/ changes. Dotfiles and packages are injected at boot.
+          overwrite_files: true
+          files: |
+            .cache/image/base.qcow2
+            .cache/image/Image
+            .cache/image/initramfs-linux.img
+            .cache/image/image.sha256

@@ -26,12 +26,18 @@ shared.pidfile = path.join(shared.builddir, "headless.pid")
 shared.statedir = os.getenv("PLAYGROUND_STATE_DIR") or path.join(shared.projectdir, "state")
 shared.settingsfile = path.join(shared.statedir, "settings")
 shared.diskfile = path.join(shared.statedir, "rootfs.qcow2")
-shared.diskkeyfile = path.join(shared.statedir, "disk.key")
-shared.resetsnapshot = "provisioned"
 shared.rawfile = path.join(shared.builddir, "rootfs.raw")
 shared.tree_new = shared.rootdir .. ".new"
 shared.rootstamp = path.join(shared.cachedir, "root.stamp")
 shared.disksize = "32G"
+shared.imagefile = path.join(shared.cachedir, "base.qcow2")
+shared.imagekeyfile = path.join(shared.cachedir, "base.key")
+shared.bootdir = path.join(shared.cachedir, "boot")
+shared.kernel = path.join(shared.bootdir, "Image")
+shared.initrd = path.join(shared.bootdir, "initramfs-linux.img")
+shared.payloadfile = path.join(shared.cachedir, "payload.raw")
+shared.payloadkeyfile = path.join(shared.cachedir, "payload.key")
+shared.payloadstage = path.join(shared.cachedir, "payload.tree")
 shared.dotfiles = os.getenv("HOME") and path.join(os.getenv("HOME"), "dotfiles") or nil
 shared.firstbootdir = path.join(shared.projectdir, "guest/firstBoot")
 shared.firstbootfile = path.join(shared.builddir, "guest/firstboot")
@@ -45,12 +51,9 @@ shared.qemubottles = {
     {file = "qemu-master.arm64_tahoe.tgz",
      release = "https://github.com/yumedots/qemu/releases/download/qemu-7d46e13418ea8f3cae9fed5b8c6148877f1b5255",
      sha256 = "260d89ed4b544248fc072f68ea91e40ef1669b25a9f352e83453bfbc1eea35cf"},
-    {file = "virglrenderer-main.arm64_golden_gate.bottle.tar.gz", opt = "virglrenderer",
-     sha256 = "0db69830b601d38a2463a7545eedcd9a514b8974ba7e60ee38a739e196fe1f27"},
-    {file = "libangle-main.arm64_golden_gate.bottle.tar.gz", opt = "libangle",
-     sha256 = "a713cae333463de4e3fcad130507cf0de45c725bb77981252b47c276499fcaee"},
-    {file = "libepoxy-angle-master.arm64_golden_gate.bottle.tar.gz", opt = "libepoxy-angle",
-     sha256 = "a5bdd5810402baf826a427da4ab10b6236cbb23fe72ed77be635f9d2cf2045ab"}
+    {file = "virglrenderer-main.arm64_golden_gate.bottle.tar.gz", opt = "virglrenderer"},
+    {file = "libangle-main.arm64_golden_gate.bottle.tar.gz", opt = "libangle"},
+    {file = "libepoxy-angle-master.arm64_golden_gate.bottle.tar.gz", opt = "libepoxy-angle"}
 }
 
 function shared.settings(os, io)
@@ -77,5 +80,7 @@ end
 
 includes("qemu")
 includes("rootfs")
+includes("image")
+includes("payload")
 includes("disk")
 includes("build")

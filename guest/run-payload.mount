@@ -1,0 +1,8 @@
+[Unit]
+Description=dotfiles payload disk from the host
+Before=firstBoot.service
+
+[Mount]
+What=/dev/disk/by-label/payload
+Where=/run/payload
+Type=ext4
