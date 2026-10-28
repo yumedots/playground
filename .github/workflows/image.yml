@@ -18,21 +18,20 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: stable
           cache: false
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             .cache/archlinuxarm.tar.gz
             .cache/archlinuxarm.md5
             .cache/mirror.url
-            ~/go/pkg/mod
           key: archlinuxarm-tarball
       - name: tools
         run: |
@@ -49,7 +48,7 @@ jobs:
           sha256sum base.qcow2 Image initramfs-linux.img > image.sha256
           ls -lh
       - name: publish
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: image
           name: guest image
