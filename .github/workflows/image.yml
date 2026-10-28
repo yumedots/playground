@@ -49,10 +49,9 @@ jobs:
           ls -lh
       - name: publish
         env:
-          GH_TOKEN: ${{ secrets.IMAGES_TOKEN }}
-          IMAGES_REPO: ${{ github.repository_owner }}/try-images
+          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view image --repo "$IMAGES_REPO" >/dev/null 2>&1 ||
-            gh release create image --repo "$IMAGES_REPO" --title "guest image" \
+          gh release view image >/dev/null 2>&1 ||
+            gh release create image --prerelease --title "guest image" \
               --notes "Plain Arch Linux ARM guest image. Dotfiles and packages are injected at boot."
-          gh release upload image --repo "$IMAGES_REPO" --clobber .cache/image/*
+          gh release upload image --clobber .cache/image/*

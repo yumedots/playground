@@ -15,8 +15,8 @@ function shared.image_repo(os)
         return shared.imagerepo
     end
     local remote = os.iorunv("git", {"remote", "get-url", "origin"}):trim()
-    local owner = remote:match("github%.com[:/]([%w._%-]+)/")
-    return owner and (owner .. "/try-images") or nil
+    local repo = remote:match("github%.com[:/]([%w._%-/]+)")
+    return repo and (repo:gsub("%.git$", "")) or nil
 end
 
 function shared.image_download(os, io, repo)
