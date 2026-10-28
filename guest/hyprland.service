@@ -9,6 +9,7 @@ User=alarm
 PAMName=login
 WorkingDirectory=/home/alarm
 Environment=XDG_SESSION_TYPE=wayland XDG_SESSION_CLASS=user XDG_CURRENT_DESKTOP=Hyprland XDG_SESSION_DESKTOP=Hyprland
+Environment=WLR_RENDERER_ALLOW_SOFTWARE=1 LIBGL_ALWAYS_SOFTWARE=1
 TTYPath=/dev/tty1
 StandardInput=tty
 StandardOutput=journal+console
