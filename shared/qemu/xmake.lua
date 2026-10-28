@@ -159,6 +159,15 @@ function shared.qemu_dependency(os, keg, name)
     os.execv("tar", {"-xzf", archive, "-C", dest, "--strip-components=2"})
 end
 
+function shared.qemu_release_hashes(os)
+    local json = os.iorunv("curl", {"-fsSL", "https://api.github.com/repos/milesbuckton/homebrew-qemu-virgl/releases/latest"})
+    local hashes = {}
+    for sha, url in json:gmatch('"digest":%s*"sha256:(%x+)"%s*,.-"browser_download_url":%s*"([^"]+)"') do
+        hashes[path.filename(url)] = sha
+    end
+    return hashes
+end
+
 function shared.qemu_fetch(os, io, force)
     if os.host() ~= "macosx" then
         return nil
@@ -168,27 +177,44 @@ function shared.qemu_fetch(os, io, force)
         os.raise("the qemu-virgl bottle is arm64 tahoe (macOS 26) or newer only: " .. os.host() .. "/" .. os.arch() ..
             ", use a QEMU from PATH with --no-gl")
     end
-    local lines = {}
-    for _, bottle in ipairs(shared.qemubottles) do
-        table.insert(lines, bottle.sha256 .. "  " .. bottle.file)
-    end
-    local pins = table.concat(lines, "\n") .. "\n"
     local stamp = path.join(keg, ".sha256")
-    if not force and os.isfile(stamp) and io.readfile(stamp) == pins then
+    local recorded, cached = {}, not force
+    if os.isfile(stamp) then
+        for line in io.readfile(stamp):gmatch("[^\r\n]+") do
+            local sha, file = line:match("^(%x+)%s+(.+)$")
+            recorded[file or ""] = sha
+        end
+    else
+        cached = false
+    end
+    for _, bottle in ipairs(shared.qemubottles) do
+        local sha = recorded[bottle.file]
+        if not sha or (bottle.sha256 and sha ~= bottle.sha256) then
+            cached = false
+        end
+    end
+    if cached then
         print("qemu-virgl cached " .. keg)
         return keg
     end
+    local released = shared.qemu_release_hashes(os)
+    local lines = {}
     os.mkdir(shared.cachedir)
     for _, bottle in ipairs(shared.qemubottles) do
+        local want = bottle.sha256 or released[bottle.file]
+        if not want then
+            os.raise("no published sha256 for " .. bottle.file .. " (the release moved, update shared.qemu_release)")
+        end
         local archive = path.join(shared.cachedir, bottle.file)
-        if not os.isfile(archive) or hash.sha256(archive) ~= bottle.sha256 then
+        if not os.isfile(archive) or hash.sha256(archive) ~= want then
             print("download " .. bottle.file)
             os.execv("curl", {"-fL", "--retry", "3", "-o", archive, (bottle.release or shared.qemurelease) .. "/" .. bottle.file})
         end
         local actual = hash.sha256(archive)
-        if actual ~= bottle.sha256 then
-            os.raise("bottle mismatch " .. bottle.file .. ": want " .. bottle.sha256 .. ", got " .. actual)
+        if actual ~= want then
+            os.raise("bottle mismatch " .. bottle.file .. ": want " .. want .. ", got " .. actual)
         end
+        table.insert(lines, actual .. "  " .. bottle.file)
         local dest = bottle.opt and path.join(keg, "opt", bottle.opt) or keg
         if bottle.opt and os.isdir(dest) then
             os.rmdir(dest)
@@ -215,7 +241,7 @@ function shared.qemu_fetch(os, io, force)
             shared.qemu_patch(os, keg, binary)
         end
     end
-    io.writefile(stamp, pins)
+    io.writefile(stamp, table.concat(lines, "\n") .. "\n")
     print("qemu-virgl ready " .. path.join(keg, "bin/qemu-system-" .. shared.guest().arch))
     return keg
 end
