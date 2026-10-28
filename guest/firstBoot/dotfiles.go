@@ -38,13 +38,39 @@ func linkDotfiles(config string, sources []string, user guestUser) error {
 		} else if !os.IsNotExist(err) {
 			return fmt.Errorf("inspect %s: %w", destination, err)
 		}
-		if err := os.Symlink(source, destination); err != nil {
-			return fmt.Errorf("link %s to %s: %w", source, destination, err)
+		if err := linkTree(source, destination); err != nil {
+			return err
 		}
 		logf("linked %s -> %s", destination, source)
 	}
 	if err := os.Chown(config, user.uid, user.gid); err != nil {
 		logf("chown %s: %v", config, err)
+	}
+	return nil
+}
+
+func linkTree(source, destination string) error {
+	info, err := os.Stat(source)
+	if err != nil {
+		return fmt.Errorf("inspect %s: %w", source, err)
+	}
+	if !info.IsDir() {
+		if err := os.Symlink(source, destination); err != nil {
+			return fmt.Errorf("link %s to %s: %w", source, destination, err)
+		}
+		return nil
+	}
+	if err := os.MkdirAll(destination, info.Mode().Perm()); err != nil {
+		return fmt.Errorf("create %s: %w", destination, err)
+	}
+	entries, err := os.ReadDir(source)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", source, err)
+	}
+	for _, entry := range entries {
+		if err := linkTree(filepath.Join(source, entry.Name()), filepath.Join(destination, entry.Name())); err != nil {
+			return err
+		}
 	}
 	return nil
 }
