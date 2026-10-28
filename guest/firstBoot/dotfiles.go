@@ -43,7 +43,18 @@ func linkDotfiles(config string, sources []string, user guestUser) error {
 		}
 		logf("linked %s -> %s", destination, source)
 	}
-	if err := os.Chown(config, user.uid, user.gid); err != nil {
+	if err := filepath.Walk(config, func(current string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return nil
+		}
+		if err := os.Chown(current, user.uid, user.gid); err != nil {
+			return fmt.Errorf("chown %s: %w", current, err)
+		}
+		return nil
+	}); err != nil {
 		logf("chown %s: %v", config, err)
 	}
 	return nil
