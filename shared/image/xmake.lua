@@ -80,7 +80,6 @@ function shared.image_build(os, find_tool, io)
     os.execv("ln", {"-sf", "/etc/systemd/system/firstBoot.service", path.join(wants, "firstBoot.service")})
     local graphical_wants = path.join(shared.rootdir, "etc/systemd/system/graphical.target.wants")
     os.mkdir(graphical_wants)
-    os.execv("ln", {"-sf", "/etc/systemd/system/tryDisplay.service", path.join(graphical_wants, "tryDisplay.service")})
     os.execv("ln", {"-sf", "/etc/systemd/system/hyprland.service", path.join(graphical_wants, "hyprland.service")})
 
     os.mkdir(shared.bootdir)

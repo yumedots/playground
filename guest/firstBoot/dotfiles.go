@@ -50,11 +50,11 @@ func linkDotfiles(config string, sources []string, user guestUser) error {
 }
 
 func linkTree(source, destination string) error {
-	info, err := os.Stat(source)
+	info, err := os.Lstat(source)
 	if err != nil {
 		return fmt.Errorf("inspect %s: %w", source, err)
 	}
-	if !info.IsDir() {
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 		if err := os.Symlink(source, destination); err != nil {
 			return fmt.Errorf("link %s to %s: %w", source, destination, err)
 		}

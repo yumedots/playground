@@ -15,7 +15,7 @@ local function qemu_args(option, os, config, io)
     local mac = os.host() == "macosx"
     local accel = mac and "hvf" or "kvm"
     local headless = option.get("headless")
-    local gl = not headless and not option.get("no-gl")
+    local gl = not headless and option.get("gl")
     local width, height = option.get("width"), option.get("height")
     if not width or not height then
         local screen_width, screen_height = shared.host_display(os, io)
@@ -83,10 +83,10 @@ on_run(function ()
         print("qemu      missing qemu-system-" .. g.arch)
     end
     if os.host() == "macosx" then
-        print("gpu       " .. (shared.qemu_keg(os) and "virtio-gpu-gl-pci, hvf, cocoa,gl=on, bottle in " .. shared.qemudir or
-            "no virgl bottle (arm64 tahoe only), use --no-gl with a QEMU from PATH"))
+        print("gpu       " .. (shared.qemu_keg(os) and "virtio-gpu-pci, hvf, cocoa, software rendering" or
+            "virtio-gpu-pci, software rendering, qemu-system-" .. g.arch .. " from PATH"))
     else
-        print("gpu       virtio-gpu-gl-pci, kvm, gtk,gl=on, system qemu-system-" .. g.arch)
+        print("gpu       virtio-gpu-pci, kvm, gtk, software rendering, system qemu-system-" .. g.arch)
     end
     local settings = shared.settings(os, io)
     print("settings  cores " .. settings.cores .. ", mem " .. settings.mem .. ", audio " .. settings.audio)
@@ -199,7 +199,7 @@ on_run(function ()
         print("guest image in " .. (os.time() - started) .. "s")
         print("first boot: the guest installs its packages, the login screen appears after that")
     end
-    if not option.get("no-gl") and not option.get("headless") then
+    if option.get("gl") and not option.get("headless") then
         shared.qemu_fetch(os, io)
     end
     local program = shared.qemu_program(os, find_tool)
@@ -239,7 +239,7 @@ set_menu {
         {nil, "cpus", "kv", nil, "Guest cores, defaults to the saved setting"},
         {nil, "print-args", "k", nil, "Print program= and arg= lines for the launcher to run"},
         {nil, "fresh", "k", nil, "Drop the disk overlay and start again from the base image"},
-        {nil, "no-gl", "k", nil, "Skip the virgl bottle and use a QEMU from PATH without virtio-gpu-gl"},
+        {nil, "gl", "k", nil, "Use the virgl bottle and virtio-gpu-gl (needs the qemu-virgl keg on arm64 tahoe)"},
         {nil, "headless", "k", nil, "Run in the background with no window; use xmake vmstatus, shot, vmstop"},
         {"n", "dry-run", "k", nil, "Print the QEMU command instead of running it"}
     }
