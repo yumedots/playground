@@ -17,6 +17,11 @@ function shared.payload_build(os, find_tool, io)
     os.mkdir(path.join(shared.payloadstage, "dotfiles"))
     os.execv("sh", {"-c", "tar -cf - --exclude=.git --exclude=.DS_Store -C '" .. shared.dotfiles ..
         "' . | tar -xf - -C '" .. path.join(shared.payloadstage, "dotfiles") .. "'"})
+    local patch = path.join(shared.projectdir, "patches/hyprlandLooknfeel.patch")
+    if os.isfile(patch) then
+        os.execv("sh", {"-c", "cd '" .. path.join(shared.payloadstage, "dotfiles") .. "' && patch -p1 -N -s -i " .. patch ..
+            " >/dev/null 2>&1 || true"})
+    end
     local mke2fs = shared.mke2fs(find_tool)
     if not mke2fs then
         os.raise("mke2fs not found, install e2fsprogs")
