@@ -31,6 +31,7 @@ function shared.payload_build(os, find_tool, io)
     os.rm(shared.payloadfile)
     os.execv(shared.qemu_img(os, find_tool), {"create", "-f", "raw", shared.payloadfile, "1G"})
     os.execv(mke2fs, {"-t", "ext4", "-F", "-L", "payload", "-d", shared.payloadstage, shared.payloadfile})
+    os.rmdir(shared.payloadstage)
     io.writefile(shared.payloadkeyfile, shared.payload_inputs(os) .. "\n")
     print("payload " .. shared.payloadfile .. " ready in " .. (os.time() - started) .. "s")
 end

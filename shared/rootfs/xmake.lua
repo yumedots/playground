@@ -97,7 +97,8 @@ function shared.extract_tree(g, os, io)
     end
     os.execv("sh", {"-c", "find " .. shared.tree_new .. " -xdev \\( -perm -4000 -o -perm -2000 \\) -exec chmod -s {} +"})
     shared.swap_tree(os, io)
-    print("extracted in " .. (os.time() - started) .. "s")
+    os.rm(shared.tarball)
+    print("extracted in " .. (os.time() - started) .. "s, dropped the tarball to save " .. shared.tarball)
 end
 
 function shared.fetch_latest(g, os, io, force)

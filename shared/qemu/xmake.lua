@@ -214,6 +214,7 @@ function shared.qemu_fetch(os, io, force)
         if actual ~= want then
             os.raise("bottle mismatch " .. bottle.file .. ": want " .. want .. ", got " .. actual)
         end
+        os.rm(archive)
         table.insert(lines, actual .. "  " .. bottle.file)
         local dest = bottle.opt and path.join(keg, "opt", bottle.opt) or keg
         if bottle.opt and os.isdir(dest) then
