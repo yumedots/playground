@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 )
 
 const guestPassword = "alarm"
@@ -36,7 +38,32 @@ func setPassword(user guestUser) error {
 	return nil
 }
 
+func ensureSddmHome() error {
+	account, err := user.Lookup("sddm")
+	if err != nil {
+		return fmt.Errorf("lookup sddm: %w", err)
+	}
+	uid, err := strconv.Atoi(account.Uid)
+	if err != nil {
+		return fmt.Errorf("sddm uid: %w", err)
+	}
+	gid, err := strconv.Atoi(account.Gid)
+	if err != nil {
+		return fmt.Errorf("sddm gid: %w", err)
+	}
+	if err := os.MkdirAll(account.HomeDir, 0700); err != nil {
+		return fmt.Errorf("create %s: %w", account.HomeDir, err)
+	}
+	if err := os.Chown(account.HomeDir, uid, gid); err != nil {
+		return fmt.Errorf("chown %s: %w", account.HomeDir, err)
+	}
+	return nil
+}
+
 func showGreeter() error {
+	if err := ensureSddmHome(); err != nil {
+		return err
+	}
 	conf := "[General]\nDisplayServer=x11\nNumlock=on\n"
 	if err := os.WriteFile("/etc/sddm.conf", []byte(conf), 0644); err != nil {
 		return fmt.Errorf("write sddm.conf: %w", err)
