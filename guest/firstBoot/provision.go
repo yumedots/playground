@@ -19,6 +19,7 @@ func provision(state *runtimeState) ([]step, []action) {
 		{name: "resolve guest user"},
 		{name: "normalize guest ownership"},
 		{name: "install guest packages"},
+		{name: "write the session entry"},
 		{name: "verify dotfiles source"},
 		{name: "link dotfiles"},
 		{name: "configure shell and console"},
@@ -49,6 +50,9 @@ func provision(state *runtimeState) ([]step, []action) {
 				return nil
 			}
 			return installPackages(packages)
+		},
+		func() error {
+			return writeSession()
 		},
 		func() error {
 			sources, err := dotfileSources("/run/payload/dotfiles")
@@ -82,6 +86,12 @@ func provision(state *runtimeState) ([]step, []action) {
 			}
 			if _, err := command("systemctl", "disable", "--now", "getty@tty1.service"); err != nil {
 				logf("disable getty: %v", err)
+			}
+			if _, err := command("systemctl", "enable", "sddm"); err != nil {
+				logf("enable sddm: %v", err)
+			}
+			if _, err := command("systemctl", "start", "--no-block", "sddm"); err != nil {
+				logf("start sddm: %v", err)
 			}
 			return nil
 		},

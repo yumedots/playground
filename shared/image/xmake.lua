@@ -79,6 +79,10 @@ function shared.image_build(os, find_tool, io)
     os.mkdir(wants)
     os.execv("ln", {"-sf", "/etc/systemd/system/firstBoot.service", path.join(wants, "firstBoot.service")})
     os.execv("ln", {"-sf", "/usr/lib/systemd/system/sddm.service", path.join(wants, "sddm.service")})
+    local sddm_dropin = path.join(shared.rootdir, "etc/systemd/system/sddm.service.d")
+    os.mkdir(sddm_dropin)
+    io.writefile(path.join(sddm_dropin, "after-firstboot.conf"),
+        "[Unit]\nAfter=firstBoot.service\nWants=firstBoot.service\n")
     local sessions = path.join(shared.rootdir, "usr/share/wayland-sessions")
     os.mkdir(sessions)
     io.writefile(path.join(sessions, "try.desktop"),
