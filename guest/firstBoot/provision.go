@@ -22,6 +22,7 @@ func provision(state *runtimeState) ([]step, []action) {
 		{name: "write the session entry"},
 		{name: "verify dotfiles source"},
 		{name: "link dotfiles"},
+		{name: "prepare the desktop"},
 		{name: "configure shell and console"},
 		{name: "start guest services"},
 		{name: "finish provisioning"},
@@ -64,6 +65,15 @@ func provision(state *runtimeState) ([]step, []action) {
 		},
 		func() error {
 			return linkDotfiles(state.config, state.sources, state.user)
+		},
+		func() error {
+			if err := buildYudaemond(state.user); err != nil {
+				return err
+			}
+			if err := setPassword(state.user); err != nil {
+				return err
+			}
+			return showGreeter()
 		},
 		func() error {
 			if err := configureShell(state.user); err != nil {

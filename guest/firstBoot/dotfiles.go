@@ -30,13 +30,24 @@ func linkDotfiles(config string, sources []string, user guestUser) error {
 		return fmt.Errorf("create config directory: %w", err)
 	}
 	for _, source := range sources {
-		destination := filepath.Join(config, filepath.Base(source))
+		name := filepath.Base(source)
+		destination := filepath.Join(config, name)
 		if _, err := os.Lstat(destination); err == nil {
 			if err := os.RemoveAll(destination); err != nil {
 				return fmt.Errorf("replace %s: %w", destination, err)
 			}
 		} else if !os.IsNotExist(err) {
 			return fmt.Errorf("inspect %s: %w", destination, err)
+		}
+		if name == "hypr" || name == "quickshell" {
+			if err := os.MkdirAll(destination, 0755); err != nil {
+				return fmt.Errorf("create %s: %w", destination, err)
+			}
+			if _, err := command("cp", "-a", source+"/.", destination); err != nil {
+				return fmt.Errorf("copy %s: %w", source, err)
+			}
+			logf("copied %s -> %s", destination, source)
+			continue
 		}
 		if err := linkTree(source, destination); err != nil {
 			return err
@@ -50,7 +61,7 @@ func linkDotfiles(config string, sources []string, user guestUser) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if info.Mode()&os.ModeSymlink != 0 {
 			return nil
 		}
 		if err := os.Chown(current, user.uid, user.gid); err != nil {
