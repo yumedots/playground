@@ -79,7 +79,12 @@ func installPackages(manifest string) error {
 		}
 	}
 	failed := installPackageBatch(regular)
-	for pass := 0; len(failed) > 0 && pass < 2; pass++ {
+	for pass := 0; len(failed) > 0 && pass < 5; pass++ {
+		logf("retrying %d packages, pass %d", len(failed), pass+1)
+		time.Sleep(10 * time.Second)
+		if _, err := runPacman("-Syy", "--noconfirm"); err != nil {
+			logf("pacman refresh: %v", err)
+		}
 		failed = installPackagesIndividually(failed)
 		if len(failed) > 0 {
 			if _, err := runPacman("-Syu", "--needed", "--noconfirm", "--noprogressbar"); err != nil {
