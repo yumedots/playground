@@ -117,6 +117,7 @@ function shared.image_build(os, find_tool, io)
     os.execv(img, {"convert", "-O", "qcow2", "-m", "8", "-W", shared.rawfile, shared.imagefile})
     os.rm(shared.rawfile)
     io.writefile(shared.imagekeyfile, shared.image_inputs(os, io) .. "\n")
+    os.rm(shared.tarball)
     print("image ready in " .. (os.time() - total) .. "s, size " ..
         os.iorunv("sh", {"-c", "ls -lh " .. shared.imagefile .. " | awk '{print $5}'"}):trim())
 end

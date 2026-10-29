@@ -52,8 +52,11 @@ on_run(function ()
             os.rm(archive)
         end
     end
-    if os.isdir(shared.rootdir) then
-        print("kept " .. shared.rootdir .. " (" .. megabytes(shared.rootdir) .. " MB), xmake fetch rebuilds it")
+    if option.get("all") and os.isdir(shared.rootdir) then
+        os.rmdir(shared.rootdir)
+        print("dropped " .. shared.rootdir .. ", the next image build downloads the tarball again")
+    elseif os.isdir(shared.rootdir) then
+        print("kept " .. shared.rootdir .. " (" .. megabytes(shared.rootdir) .. " MB), add --all to drop it")
     end
     if option.get("disk") then
         shared.prepare(os, find_tool, io, true)
@@ -64,9 +67,10 @@ on_run(function ()
     print("pruned " .. math.max(before - after, 0) .. " MB, " .. after .. " MB left in cache, build and state")
 end)
 set_menu {
-    usage = "xmake prune [--disk]",
+    usage = "xmake prune [--all] [--disk]",
     description = "Drop build leftovers, downloads and extracted staging, and report the space left",
     options = {
+        {nil, "all", "k", nil, "Also drop the extracted root tree, the next image build downloads the tarball"},
         {nil, "disk", "k", nil, "Also drop the guest overlay, the next boot provisions again"}
     }
 }
