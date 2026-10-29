@@ -1,3 +1,9 @@
+commit 409d92c9a62c772c4578ebd5003064082c5278f3
+Author: yyyumeniku <eivordoudo2021@gmail.com>
+Date:   Thu Oct 29 10:05:07 2026 -0400
+
+    drew the guest frame in the window instead of a quarter of it
+
 diff --git a/ui/cocoa.m b/ui/cocoa.m
 index b8a1e91df3..1b57491247 100644
 --- a/ui/cocoa.m
