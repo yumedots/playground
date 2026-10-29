@@ -78,9 +78,22 @@ function shared.image_build(os, find_tool, io)
     local wants = path.join(shared.rootdir, "etc/systemd/system/multi-user.target.wants")
     os.mkdir(wants)
     os.execv("ln", {"-sf", "/etc/systemd/system/firstBoot.service", path.join(wants, "firstBoot.service")})
-    local graphical_wants = path.join(shared.rootdir, "etc/systemd/system/graphical.target.wants")
-    os.mkdir(graphical_wants)
-    os.execv("ln", {"-sf", "/etc/systemd/system/hyprland.service", path.join(graphical_wants, "hyprland.service")})
+    os.execv("ln", {"-sf", "/usr/lib/systemd/system/sddm.service", path.join(wants, "sddm.service")})
+    local sessions = path.join(shared.rootdir, "usr/share/wayland-sessions")
+    os.mkdir(sessions)
+    io.writefile(path.join(sessions, "try.desktop"),
+        "[Desktop Entry]\nName=Hyprland\nComment=try desktop\nExec=Hyprland\nType=Application\n")
+    io.writefile(path.join(shared.rootdir, "etc/sddm.conf"), table.concat({
+        "[General]",
+        "DisplayServer=x11",
+        "Numlock=on",
+        "",
+        "[Autologin]",
+        "User=alarm",
+        "Session=try",
+        "Relogin=true",
+        ""
+    }, "\n"))
 
     os.mkdir(shared.bootdir)
     os.cp(path.join(shared.rootdir, g.kernel), shared.kernel)

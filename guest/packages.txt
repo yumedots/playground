@@ -24,3 +24,6 @@ pipewire-pulse
 pipewire-alsa
 wireplumber
 alsa-utils
+sddm
+xorg-server
+xorg-xauth

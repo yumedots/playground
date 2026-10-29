@@ -43,6 +43,9 @@ func linkDotfiles(config string, sources []string, user guestUser) error {
 		}
 		logf("linked %s -> %s", destination, source)
 	}
+	if err := ensureHyprlandConfig(filepath.Join(config, "hypr"), user); err != nil {
+		logf("hyprland config: %v", err)
+	}
 	if err := filepath.Walk(config, func(current string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -83,5 +86,26 @@ func linkTree(source, destination string) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func ensureHyprlandConfig(dir string, user guestUser) error {
+	path := filepath.Join(dir, "hyprland.conf")
+	if _, err := os.Lstat(path); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	conf := "monitor=,preferred,auto,1\n"
+	if err := os.WriteFile(path, []byte(conf), 0644); err != nil {
+		return err
+	}
+	if err := os.Chown(path, user.uid, user.gid); err != nil {
+		return err
+	}
+	logf("wrote fallback hyprland.conf so hyprland stops generating one")
 	return nil
 }
