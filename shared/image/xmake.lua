@@ -78,11 +78,23 @@ function shared.image_build(os, find_tool, io)
     local wants = path.join(shared.rootdir, "etc/systemd/system/multi-user.target.wants")
     os.mkdir(wants)
     os.execv("ln", {"-sf", "/etc/systemd/system/firstBoot.service", path.join(wants, "firstBoot.service")})
-    os.execv("ln", {"-sf", "/usr/lib/systemd/system/sddm.service", path.join(wants, "sddm.service")})
-    local sddm_dropin = path.join(shared.rootdir, "etc/systemd/system/sddm.service.d")
-    os.mkdir(sddm_dropin)
-    io.writefile(path.join(sddm_dropin, "after-firstboot.conf"),
-        "[Unit]\nAfter=firstBoot.service\nWants=firstBoot.service\n")
+    local getty_dropin = path.join(shared.rootdir, "etc/systemd/system/getty@tty1.service.d")
+    os.mkdir(getty_dropin)
+    io.writefile(path.join(getty_dropin, "autologin.conf"),
+        "[Service]\nExecStart=\nExecStart=-/usr/bin/agetty --autologin alarm --noclear %I $TERM\n")
+    io.writefile(path.join(shared.rootdir, "usr/local/bin/try-session"), table.concat({
+        "#!/bin/sh",
+        "export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}",
+        "exec start-hyprland",
+        ""
+    }, "\n"))
+    os.execv("chmod", {"755", path.join(shared.rootdir, "usr/local/bin/try-session")})
+    io.writefile(path.join(shared.rootdir, "etc/zsh/zprofile"), table.concat({
+        "if [ \"$XDG_VTNR\" = \"1\" ] && [ -z \"$WAYLAND_DISPLAY\" ] && [ -x /usr/local/bin/try-session ]; then",
+        "  exec /usr/local/bin/try-session",
+        "fi",
+        ""
+    }, "\n"))
     local sessions = path.join(shared.rootdir, "usr/share/wayland-sessions")
     os.mkdir(sessions)
     io.writefile(path.join(sessions, "try.desktop"),

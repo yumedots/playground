@@ -94,19 +94,11 @@ func provision(state *runtimeState) ([]step, []action) {
 			if _, err := command("systemctl", "start", "sshd"); err != nil {
 				logf("start sshd: %v", err)
 			}
-			sddm, _ := os.Stat("/usr/bin/sddm")
-			if sddm == nil || sddm.IsDir() {
-				logf("sddm is missing, leaving the tty1 login in place")
-				return nil
+			if _, err := command("systemctl", "enable", "getty@tty1.service"); err != nil {
+				logf("enable getty: %v", err)
 			}
-			if _, err := command("systemctl", "disable", "--now", "getty@tty1.service"); err != nil {
-				logf("disable getty: %v", err)
-			}
-			if _, err := command("systemctl", "enable", "sddm"); err != nil {
-				logf("enable sddm: %v", err)
-			}
-			if _, err := command("systemctl", "start", "--no-block", "sddm"); err != nil {
-				logf("start sddm: %v", err)
+			if _, err := command("systemctl", "restart", "--no-block", "getty@tty1.service"); err != nil {
+				logf("restart getty: %v", err)
 			}
 			return nil
 		},
