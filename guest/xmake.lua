@@ -27,16 +27,13 @@ on_run(function ()
     shared.fetch_latest(shared.guest(), os, io, true)
     if shared.gpu_host(os) then
         shared.gpu_fetch(os, io)
-    end
-    if shared.qemu_keg(os) then
-        shared.qemu_fetch(os, io, true)
     else
-        print("qemu: no virgl bottle on this host, vm uses qemu-system-" .. shared.guest().arch .. " from PATH")
+        print("qemu: vm uses qemu-system-" .. shared.guest().arch .. " from PATH")
     end
 end)
 set_menu {
     usage = "xmake fetch",
-    description = "Download the latest Arch Linux ARM tarball, the pinned try-omarchy GPU kit and the qemu bottles"
+    description = "Download the latest Arch Linux ARM tarball, and the pinned yumedots/qemu runtime"
 }
 
 task("image")

@@ -50,13 +50,9 @@ local function qemu_args(option, os, config, io)
         "-no-reboot"
     }
     if config.audio == "on" then
-        local audio = mac and (gl and "sdl,id=audio0,timer-period=1000,out.buffer-count=8" or "coreaudio,id=audio0") or "pa,id=audio0"
+        local audio = mac and "sdl,id=audio0,timer-period=1000,out.buffer-count=8" or "pa,id=audio0"
         table.join2(argv, {"-audiodev", audio,
             "-device", "intel-hda", "-device", "hda-output,audiodev=audio0"})
-    end
-    local sharedir = not (gl and mac) and shared.qemu_sharedir(os)
-    if sharedir then
-        table.join2(argv, {"-L", sharedir})
     end
     if headless then
         table.join2(argv, {"-display", "none", "-monitor", "unix:" .. shared.monitorsock .. ",server,nowait"})
@@ -80,13 +76,13 @@ on_run(function ()
     print("guest     " .. g.arch)
     if program then
         local version = os.iorunv("sh", {"-c", program .. " --version 2>/dev/null | head -1 || true"}):trim()
-        print("qemu      " .. program .. (version ~= "" and " " .. version or " (needs the keg env to run)"))
+        print("qemu      " .. program .. (version ~= "" and " " .. version or " (not fetched, run xmake fetch)"))
     else
         print("qemu      missing qemu-system-" .. g.arch)
     end
     if os.host() == "macosx" then
-        print("gpu       virtio-gpu-gl-pci, hvf, cocoa,gl=on, virgl, try-omarchy kit qemu in " .. shared.gpudir ..
-            " (--2d: virtio-gpu-pci and llvmpipe on " .. (shared.qemu_keg(os) and "the keg qemu)" or "the QEMU from PATH)"))
+        print("gpu       virtio-gpu-gl-pci, hvf, cocoa,gl=on, virgl, yumedots/qemu runtime in " .. shared.gpudir ..
+            " (--2d: virtio-gpu-pci and llvmpipe)")
     else
         print("gpu       virtio-gpu-pci, kvm, gtk, sysw renderer, system qemu-system-" .. g.arch)
     end
@@ -113,9 +109,6 @@ on_run(function ()
     end
     print("dotfiles  " .. (shared.dotfiles or "none") .. " -> injected at boot from the payload disk")
     print("log       " .. shared.logfile)
-    if shared.gpu_host(os) and not option.get("2d") and os.isfile(shared.gpu_program()) then
-        program = shared.gpu_program()
-    end
     if program and os.isfile(shared.diskfile) then
         print("run       " .. program .. " " .. table.concat(qemu_args(option, os, qemu_config(option, os, io, program), io), " "))
     end
@@ -157,14 +150,17 @@ on_run(function ()
     if option.get("headless") and shared.headless_running(os) then
         os.raise("headless guest already running, see xmake vmstatus")
     end
+    local gpu = shared.gpu_host(os)
+    if gpu then
+        shared.gpu_fetch(os, io)
+    end
     local started = os.time()
     shared.prepare(os, find_tool, io, option.get("fresh"))
     if os.time() - started > 2 then
         print("guest image in " .. (os.time() - started) .. "s")
         print("first boot: the guest installs its packages, the login screen appears after that")
     end
-    local gpu = not option.get("headless") and not option.get("2d") and shared.gpu_host(os)
-    local program = gpu and shared.gpu_fetch(os, io) or shared.qemu_program(os, find_tool)
+    local program = shared.qemu_program(os, find_tool)
     if not program then
         os.raise("qemu-system-" .. g.arch .. " is not in PATH")
     end
@@ -175,9 +171,6 @@ on_run(function ()
         for _, value in ipairs(argv) do
             print("arg=" .. value)
         end
-        for key, value in pairs(not gpu and shared.qemu_env(os) or {}) do
-            print("env=" .. key .. "=" .. value)
-        end
         return
     end
     if option.get("dry-run") then
@@ -185,11 +178,11 @@ on_run(function ()
         return
     end
     if option.get("headless") then
-        shared.headless_start(os, program, argv, shared.qemu_env(os) or {})
+        shared.headless_start(os, program, argv, {})
         return
     end
     print("booting " .. g.arch .. " with " .. config.cores .. " cores, " .. config.mem .. ", log " .. shared.logfile)
-    os.execv(program, argv, {envs = not gpu and shared.qemu_env(os) or {}})
+    os.execv(program, argv)
 end)
 set_menu {
     usage = "xmake vm [options]",

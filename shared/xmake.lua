@@ -47,18 +47,8 @@ shared.guest_arch = "arm64"
 
 shared.gpudir = path.join(shared.cachedir, "gpu")
 shared.gpukit = {
-    url = "https://github.com/omacom/try-omarchy/releases/download/v1.3.0/TryOmarchyKit.zip",
-    sha256 = "3ad65381b34ced2ebe3f5f19b95d58ec1a2c51a77a6edf7599666a939b6991a6"
-}
-shared.qemudir = path.join(shared.cachedir, "qemu")
-shared.qemurelease = "https://github.com/milesbuckton/homebrew-qemu-virgl/releases/download/latest"
-shared.qemubottles = {
-    {file = "qemu-master.arm64_tahoe.tgz",
-     release = "https://github.com/yumedots/qemu/releases/download/qemu-7d46e13418ea8f3cae9fed5b8c6148877f1b5255",
-     sha256 = "260d89ed4b544248fc072f68ea91e40ef1669b25a9f352e83453bfbc1eea35cf"},
-    {file = "virglrenderer-main.arm64_golden_gate.bottle.tar.gz", opt = "virglrenderer"},
-    {file = "libangle-main.arm64_golden_gate.bottle.tar.gz", opt = "libangle"},
-    {file = "libepoxy-angle-master.arm64_golden_gate.bottle.tar.gz", opt = "libepoxy-angle"}
+    url = "https://github.com/yumedots/qemu/releases/download/gpu-f47ec30fe52e2e6ae72104784583ec4fd4980c0f/qemu-gpu-runtime.arm64.tgz",
+    sha256 = "c4af275406b83182d2c0d3fd3c18bbbef19ca3c205807858f02bf1f68aee64ec"
 }
 
 function shared.settings(os, io)
