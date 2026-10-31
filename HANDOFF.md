@@ -134,6 +134,80 @@ Guest access while it runs: `ssh -p 2222 alarm@127.0.0.1`, password `alarm`
   fixed by replacing SDDM with getty autologin).
 - `swap-opt-cmd`, `show-cursor`, `full-screen`, `max_outputs=1`, `romfile=`.
 
+## Omarchy A/B comparison (run this first — it is unblocked now)
+
+Disk has >100 GB free, so the reference guest can be pulled. The goal is to boot
+**their** guest with **our** binary/libraries: if their desktop renders under the
+same cocoa path, the bug is in our guest (Mesa/compositor/session); if it also
+stays black, the bug is host-side after all.
+
+```sh
+cd /Users/gabriel/try
+mkdir -p .cache/omarchy-ab && cd .cache/omarchy-ab
+# their factory disk ships as three release parts (release v1.2.0 at the time of writing)
+gh release view --repo omacom/try-omarchy --json tagName -q .tagName
+for p in 001 002 003; do
+  gh release download v1.2.0 --repo omacom/try-omarchy \
+    --pattern "omarchy-aarch64-edge.img.zst.$p" --dir . --clobber
+done
+cat omarchy-aarch64-edge.img.zst.00* > omarchy.img.zst
+zstd -d -f omarchy.img.zst -o omarchy.img          # ~3 GB compressed, expect ~8-10 GB raw
+KEG=/Users/gabriel/try/.cache/qemu
+cp "$KEG/share/qemu/edk2-aarch64-code.fd" .
+cp "$KEG/share/qemu/edk2-aarch64-vars.fd" vars.fd  # the keg ships the edk2 firmware
+"$KEG/bin/qemu-system-aarch64" \
+  -machine virt,accel=hvf,highmem=on,virtualization=on -cpu host -smp 8 -m 8G -nodefaults \
+  -drive if=pflash,format=raw,readonly=on,file=edk2-aarch64-code.fd \
+  -drive if=pflash,format=raw,file=vars.fd \
+  -drive if=none,id=root,file=omarchy.img,format=raw,cache=writeback \
+  -device virtio-blk-pci,drive=root,serial=root,bootindex=0 \
+  -device virtio-gpu-gl-pci,max_outputs=1,hostmem=256M,xres=1512,yres=982 \
+  -display "cocoa,gl=es,zoom-to-fit=on,full-grab=on,swap-opt-cmd=off" \
+  -device virtio-keyboard-pci -device virtio-tablet-pci \
+  -device qemu-xhci -device usb-kbd \
+  -netdev user,id=n0,hostfwd=tcp:127.0.0.1:2299-:22 -device virtio-net-pci,netdev=n0 \
+  -object rng-random,id=rng,filename=/dev/urandom -device virtio-rng-pci,rng=rng \
+  -monitor unix:/tmp/ab.sock,server=on,wait=off
+```
+
+Capture the window like everywhere else:
+
+```sh
+python3 - <<'EOF'
+import subprocess
+out = subprocess.run(['swift','/tmp/winlist.swift'], capture_output=True, text=True).stdout
+best = None
+for line in out.splitlines():
+    if 'qemu' not in line.lower() or not line.split() or not line.split()[0].isdigit(): continue
+    try: w,h = float(line.split()[-2]), float(line.split()[-1])
+    except ValueError: continue
+    if not best or w*h > best[0]: best = (w*h, line.split()[0], w, h)
+print(best)
+if best: subprocess.run(['screencapture','-x','-l',best[1],'/tmp/ab.png'])
+EOF
+```
+
+(`/tmp/winlist.swift` is a tiny CoreGraphics dumper that prints `<id> <owner> | <w> <h>`;
+recreate it if missing: it iterates `CGWindowListCopyWindowInfo(.optionAll)`.)
+
+Notes for this A/B:
+- Our fork binary currently needs rebuilding first (`~/qemu/build` was deleted to save
+  disk; the configure command is above). Using the keg's bottle QEMU is fine for the
+  A/B too — both were black with our guest, so either isolates the guest.
+- Their guest boots through UEFI + limine, not `-kernel`; the pflash drives above are
+  the whole trick. Firmware also exists in their repo (`stage-uefi-firmware.sh` pulls
+  it out of the pinned QEMU source).
+- Their disk ships services that expect their app's virtio-serial bridges; without
+  them the session should still come up (the package tolerates missing devices), but
+  the Mac integrations (clipboard, battery, audio) will be absent. That is fine, only
+  the picture matters here.
+- If their desktop shows: ssh into it if possible (their factory user/keys are in
+  `guest/factory/`), or read the raw image offline, and compare against our guest:
+  `mesa`, `hyprland`, `aquamarine`, `quickshell` versions, `hyprctl -j monitors`,
+  `/usr/lib/environment.d/*`, `~/.config/hypr/*.lua`, and the `try-omarchy` package.
+- If their desktop is black too, jump to experiments 1-2 below (texture/context
+  instrumentation) because the guest is exonerated.
+
 ## Next experiments (in order)
 
 1. **Dump the borrowed texture itself**, not the window: in
@@ -152,10 +226,7 @@ Guest access while it runs: `ssh -p 2222 alarm@127.0.0.1`, password `alarm`
    EGL_NO_SURFACE`, `cocoa_gl_create_nscontext`) *after* installing the native
    virglrenderer + startergo epoxy/ANGLE. The `gl=on` branch was only tested with
    the old bottles, before the dependency swap.
-4. **A/B the guest** (needs the user's go-ahead): download Omarchy's official
-   image (~3 GB, disk has ~8 GB free, `xmake prune --disk` first) and boot it with
-   the same runtime. If it shows the desktop, diff its Mesa/Hyprland/`try-omarchy`
-   package against ours; if it also stays black, the bug is host-side after all.
+4. **A/B the guest** — see the section above; it is now unblocked (>100 GB free).
 
 ## Environment gotchas
 
@@ -165,8 +236,9 @@ Guest access while it runs: `ssh -p 2222 alarm@127.0.0.1`, password `alarm`
   driver/format regression runners and libslirp's `meson test`) — they fail on
   linker symbols, not on the build itself. They are already stubbed in
   `.cache/try-omarchy/macos/build-qemu-gpu-runtime.sh`.
-- Disk is tight: `xmake prune --all` drops the extracted root tree, `--disk`
-  drops the 5 GB guest overlay (next boot re-provisions in ~4 min).
+- Disk: `xmake prune --all` drops the extracted root tree, `--disk` drops the
+  ~5 GB guest overlay (next boot re-provisions in ~4 min). The host had ~120 GB
+  free at handoff time, so the Omarchy A/B fits.
 - Guest first boot installs ~65 packages from `guest/packages.txt`; a flaky
   mirror used to abort provisioning, now retried 5 times.
 
