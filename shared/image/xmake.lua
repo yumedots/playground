@@ -1,6 +1,6 @@
 function shared.image_inputs(os, io)
     local lines = {shared.disksize}
-    for _, pattern in ipairs({path.join(shared.projectdir, "guest/**"), path.join(shared.projectdir, "shared/rootfs/xmake.lua")}) do
+    for _, pattern in ipairs({path.join(shared.projectdir, "guest/**"), path.join(shared.projectdir, "shared/rootfs/xmake.lua"), path.join(shared.projectdir, "shared/image/xmake.lua")}) do
         for _, file in ipairs(os.files(pattern)) do
             lines[#lines + 1] = file .. " " .. tostring(os.filesize(file)) .. " " .. tostring(os.mtime(file))
         end
@@ -78,6 +78,9 @@ function shared.image_build(os, find_tool, io)
     local wants = path.join(shared.rootdir, "etc/systemd/system/multi-user.target.wants")
     os.mkdir(wants)
     os.execv("ln", {"-sf", "/etc/systemd/system/firstBoot.service", path.join(wants, "firstBoot.service")})
+    local graphical_wants = path.join(shared.rootdir, "etc/systemd/system/graphical.target.wants")
+    os.mkdir(graphical_wants)
+    os.execv("ln", {"-sf", "/etc/systemd/system/tryDisplay.service", path.join(graphical_wants, "tryDisplay.service")})
     local getty_dropin = path.join(shared.rootdir, "etc/systemd/system/getty@tty1.service.d")
     os.mkdir(getty_dropin)
     io.writefile(path.join(getty_dropin, "autologin.conf"),
@@ -157,7 +160,7 @@ function shared.image_ensure(os, find_tool, io)
             return
         end
     elseif repo and os.isfile(shared.imagefile) then
-        why = "the local base image is older than guest/ and shared/rootfs/xmake.lua"
+        why = "the local base image is older than guest/, shared/rootfs/xmake.lua and shared/image/xmake.lua"
     end
     print("building the base image locally: " .. why)
     shared.image_build(os, find_tool, io)
