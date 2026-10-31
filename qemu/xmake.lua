@@ -26,10 +26,11 @@ local function qemu_args(option, os, config, io)
         machine = machine .. ",virtualization=on"
     end
     local argv = {
+        "-name", "try",
         "-machine", machine,
         "-accel", mac and "hvf,kernel-irqchip=on" or "kvm",
         "-cpu", mac and "host,pmu=off" or "host",
-        "-smp", config.cores,
+        "-smp", config.cores .. ",sockets=1,cores=" .. config.cores .. ",threads=1",
         "-m", config.mem,
         "-kernel", shared.kernel,
         "-initrd", shared.initrd,
@@ -37,11 +38,11 @@ local function qemu_args(option, os, config, io)
         "-drive", "if=virtio,format=qcow2,file=" .. shared.diskfile,
         "-drive", "if=virtio,format=raw,readonly=on,file=" .. shared.payloadfile,
         "-device", (gl and "virtio-gpu-gl-pci" or "virtio-gpu-pci") ..
-            ",xres=" .. width .. ",yres=" .. height .. ",romfile=",
+            ",max_outputs=1,xres=" .. width .. ",yres=" .. height .. ",romfile=",
         "-device", "virtio-rng-pci",
-        "-device", "qemu-xhci",
-        "-device", "usb-kbd",
-        "-device", "usb-tablet",
+        "-device", "virtio-keyboard-pci,romfile=",
+        "-device", "virtio-tablet-pci,romfile=",
+        "-device", "virtio-balloon-pci,free-page-reporting=on",
         "-netdev", "user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22",
         "-device", "virtio-net-pci,netdev=net0,romfile=",
         "-chardev", "socket,id=serial0,path=" .. shared.serialsock .. ",server=on,wait=off,logfile=" .. shared.logfile .. ",logappend=on",
