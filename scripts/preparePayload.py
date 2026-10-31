@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Adjust the staged dotfiles so they work inside the try guest.
 
-Patches the NVIDIA-only environment, the quickshell launcher binding, the
+Patches the NVIDIA-only environment, the virtio-gpu dmabuf format quirk
+(Hyprland otherwise hides every format the single XRGB8888 KMS plane cannot
+scan out, so GL clients lose their alpha configs and transparent layers turn
+black under virgl), the quickshell launcher binding, the
 yudaemond build mode and writes the display cache, then points the user
 session at yudaemond. The payload disk is read-only in the guest, so every
 dotfile edit has to happen here, while the tree is still on the host.
@@ -36,6 +39,19 @@ def patch_envs(root):
         with open(path, "w") as handle:
             handle.write(text.replace(old, new))
         print("patched hypr/envs.lua for the nvidia-free guest")
+
+
+def patch_dmabuf(root):
+    path = os.path.join(root, "hypr", "hyprland.lua")
+    if not os.path.isfile(path):
+        return
+    with open(path) as handle:
+        text = handle.read()
+    line = "hl.config({ quirks = { skip_non_kms_dmabuf_formats = false } })\n"
+    if line not in text:
+        with open(path, "w") as handle:
+            handle.write(line + text)
+        print("patched hypr/hyprland.lua to advertise alpha dmabuf formats on virtio-gpu")
 
 
 def patch_launcher(root):
@@ -91,6 +107,7 @@ def main():
         sys.exit("usage: preparePayload.py <staged dotfiles dir>")
     root = sys.argv[1]
     patch_envs(root)
+    patch_dmabuf(root)
     patch_launcher(root)
     patch_build(root)
     write_display(root)

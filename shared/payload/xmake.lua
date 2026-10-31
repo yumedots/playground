@@ -3,7 +3,10 @@ function shared.payload_inputs(os)
         os.raise("dotfiles source missing or submodule not populated: " .. tostring(shared.dotfiles))
     end
     local lines = {}
-    for _, file in ipairs(os.files(path.join(shared.dotfiles, "**"))) do
+    local files = os.files(path.join(shared.dotfiles, "**"))
+    table.insert(files, path.join(shared.projectdir, "scripts/preparePayload.py"))
+    table.insert(files, path.join(shared.projectdir, "patches/hyprlandLooknfeel.patch"))
+    for _, file in ipairs(files) do
         lines[#lines + 1] = file .. " " .. tostring(os.filesize(file)) .. " " .. tostring(os.mtime(file))
     end
     table.sort(lines)
