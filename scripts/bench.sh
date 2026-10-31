@@ -52,6 +52,7 @@ spawn() {
 }
 
 osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $PID) to true" >/dev/null
+guest "command -v glmark2-es2-wayland >/dev/null || echo root | su -c 'pacman -S --needed --noconfirm glmark2 mesa-utils >/dev/null 2>&1' root 2>/dev/null"
 guest "$(focus 1) pkill -x foot; pkill -f gears; pkill -f glmark2; true"
 info=$(guest "hyprctl monitors | sed -n '2p;/scale:/p' | tr -s ' \t' ' '; grep -m1 -o 'Renderer: [^)]*)' /run/user/1000/hypr/*/hyprland.log; printf 'while :; do seq 1 200000; done\n' > /tmp/flood.sh")
 echo "$(echo "$info" | tr '\n' ' ')$SECS s per scenario"
