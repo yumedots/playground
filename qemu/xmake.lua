@@ -6,14 +6,13 @@ local function qemu_config(option, os, io, program)
         cores = option.get("cpus") or settings.cores,
         mem = option.get("mem") or settings.mem,
         audio = settings.audio,
-        virtualization = shared.virtualization(os, io, program)
+        virtualization = settings.nested == "on" and shared.virtualization(os, io, program)
     }
 end
 
 local function qemu_args(option, os, config, io)
     local g = shared.guest()
     local mac = os.host() == "macosx"
-    local accel = mac and "hvf" or "kvm"
     local headless = option.get("headless")
     local gl = not headless and not option.get("2d")
     local width, height = option.get("width"), option.get("height")
@@ -22,13 +21,14 @@ local function qemu_args(option, os, config, io)
         width = width or screen_width
         height = height or screen_height
     end
-    local machine = "virt,accel=" .. accel .. ",highmem=on"
+    local machine = "virt,highmem=on"
     if config.virtualization then
         machine = machine .. ",virtualization=on"
     end
     local argv = {
         "-machine", machine,
-        "-cpu", "host",
+        "-accel", mac and "hvf,kernel-irqchip=on" or "kvm",
+        "-cpu", mac and "host,pmu=off" or "host",
         "-smp", config.cores,
         "-m", config.mem,
         "-kernel", shared.kernel,
@@ -90,8 +90,8 @@ on_run(function ()
         print("gpu       virtio-gpu-pci, kvm, gtk, sysw renderer, system qemu-system-" .. g.arch)
     end
     local settings = shared.settings(os, io)
-    print("settings  cores " .. settings.cores .. ", mem " .. settings.mem .. ", audio " .. settings.audio)
-    print("nested    " .. (shared.virtualization(os, io, program) and "on, guest gets /dev/kvm" or "off"))
+    print("settings  cores " .. settings.cores .. ", mem " .. settings.mem .. ", audio " .. settings.audio .. ", nested " .. settings.nested)
+    print("nested    " .. (settings.nested == "on" and shared.virtualization(os, io, program) and "on, guest gets /dev/kvm" or "off, nested=on in state/settings gives the guest /dev/kvm at about twice the host cpu"))
     print("state     " .. shared.statedir)
     print("mke2fs    " .. (mke2fs or "missing e2fsprogs"))
     if os.isfile(shared.tarball) then

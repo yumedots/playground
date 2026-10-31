@@ -12,4 +12,4 @@ Boots an Arch Linux ARM guest with your dotfiles in a QEMU window, driven by a s
 - `xmake build checks && xmake run checks` runs the self-checks.
 - `xmake vm --dry-run` prints the QEMU command the launcher runs.
 
-Settings (cores, mem, audio) live in `state/settings`. Set `PLAYGROUND_STATE_DIR` to move the state.
+Settings (cores, mem, audio, nested) live in `state/settings`. Set `PLAYGROUND_STATE_DIR` to move the state.

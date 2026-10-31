@@ -66,7 +66,8 @@ function shared.settings(os, io)
     local values = {
         cores = tostring(math.min(8, os.cpuinfo().ncpu)),
         mem = gigabytes >= 16 and "8G" or "4G",
-        audio = os.host() == "macosx" and "on" or "off"
+        audio = os.host() == "macosx" and "on" or "off",
+        nested = "off"
     }
     if os.isfile(shared.settingsfile) then
         for line in io.readfile(shared.settingsfile):gmatch("[^\r\n]+") do
