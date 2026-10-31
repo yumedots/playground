@@ -25,6 +25,9 @@ end)
 task("fetch")
 on_run(function ()
     shared.fetch_latest(shared.guest(), os, io, true)
+    if shared.gpu_host(os) then
+        shared.gpu_fetch(os, io)
+    end
     if shared.qemu_keg(os) then
         shared.qemu_fetch(os, io, true)
     else
@@ -33,7 +36,7 @@ on_run(function ()
 end)
 set_menu {
     usage = "xmake fetch",
-    description = "Download the latest Arch Linux ARM tarball and the pinned qemu-virgl bottles"
+    description = "Download the latest Arch Linux ARM tarball, the pinned try-omarchy GPU kit and the qemu bottles"
 }
 
 task("image")

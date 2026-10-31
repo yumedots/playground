@@ -175,7 +175,7 @@ function shared.qemu_fetch(os, io, force)
     local keg = shared.qemu_keg(os)
     if not keg then
         os.raise("the qemu-virgl bottle is arm64 tahoe (macOS 26) or newer only: " .. os.host() .. "/" .. os.arch() ..
-            ", use a QEMU from PATH with --no-gl")
+            ", use a QEMU from PATH")
     end
     local stamp = path.join(keg, ".sha256")
     local recorded, cached = {}, not force
@@ -243,10 +243,6 @@ function shared.qemu_fetch(os, io, force)
         end
     end
     io.writefile(stamp, table.concat(lines, "\n") .. "\n")
-    local repo = os.getenv("TRY_QEMU_REPO") or (os.getenv("HOME") or "") .. "/qemu"
-    if shared.qemu_install_fork and shared.qemu_install_fork(os, repo) then
-        print("reinstalled the fork build after the bottle extraction")
-    end
     print("qemu-virgl ready " .. path.join(keg, "bin/qemu-system-" .. shared.guest().arch))
     return keg
 end

@@ -45,6 +45,11 @@ shared.trydisplaydir = path.join(shared.projectdir, "guest/tryDisplay")
 shared.trydisplayfile = path.join(shared.builddir, "guest/tryDisplay")
 shared.guest_arch = "arm64"
 
+shared.gpudir = path.join(shared.cachedir, "gpu")
+shared.gpukit = {
+    url = "https://github.com/omacom/try-omarchy/releases/download/v1.3.0/TryOmarchyKit.zip",
+    sha256 = "3ad65381b34ced2ebe3f5f19b95d58ec1a2c51a77a6edf7599666a939b6991a6"
+}
 shared.qemudir = path.join(shared.cachedir, "qemu")
 shared.qemurelease = "https://github.com/milesbuckton/homebrew-qemu-virgl/releases/download/latest"
 shared.qemubottles = {
@@ -79,6 +84,7 @@ function shared.state(os)
 end
 
 includes("qemu")
+includes("gpu")
 includes("rootfs")
 includes("image")
 includes("payload")

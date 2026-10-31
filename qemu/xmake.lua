@@ -15,7 +15,7 @@ local function qemu_args(option, os, config, io)
     local mac = os.host() == "macosx"
     local accel = mac and "hvf" or "kvm"
     local headless = option.get("headless")
-    local gl = not headless and option.get("gl")
+    local gl = not headless and not option.get("2d")
     local width, height = option.get("width"), option.get("height")
     if not width or not height then
         local screen_width, screen_height = shared.host_display(os, io)
@@ -37,22 +37,23 @@ local function qemu_args(option, os, config, io)
         "-drive", "if=virtio,format=qcow2,file=" .. shared.diskfile,
         "-drive", "if=virtio,format=raw,readonly=on,file=" .. shared.payloadfile,
         "-device", (gl and "virtio-gpu-gl-pci" or "virtio-gpu-pci") ..
-            ",xres=" .. width .. ",yres=" .. height,
+            ",xres=" .. width .. ",yres=" .. height .. ",romfile=",
         "-device", "virtio-rng-pci",
         "-device", "qemu-xhci",
         "-device", "usb-kbd",
         "-device", "usb-tablet",
         "-netdev", "user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22",
-        "-device", "virtio-net-pci,netdev=net0",
+        "-device", "virtio-net-pci,netdev=net0,romfile=",
         "-chardev", "socket,id=serial0,path=" .. shared.serialsock .. ",server=on,wait=off,logfile=" .. shared.logfile .. ",logappend=on",
         "-serial", "chardev:serial0",
         "-no-reboot"
     }
     if config.audio == "on" then
-        table.join2(argv, {"-audiodev", (mac and "coreaudio" or "pa") .. ",id=audio0",
+        local audio = mac and (gl and "sdl,id=audio0,timer-period=1000,out.buffer-count=8" or "coreaudio,id=audio0") or "pa,id=audio0"
+        table.join2(argv, {"-audiodev", audio,
             "-device", "intel-hda", "-device", "hda-output,audiodev=audio0"})
     end
-    local sharedir = shared.qemu_sharedir(os)
+    local sharedir = not (gl and mac) and shared.qemu_sharedir(os)
     if sharedir then
         table.join2(argv, {"-L", sharedir})
     end
@@ -83,8 +84,8 @@ on_run(function ()
         print("qemu      missing qemu-system-" .. g.arch)
     end
     if os.host() == "macosx" then
-        print("gpu       virtio-gpu-pci, hvf, cocoa, guest renders with llvmpipe" .. (shared.qemu_keg(os) and
-            (", virgl bottle unused (--gl tries it), keg in " .. shared.qemudir) or ", QEMU from PATH"))
+        print("gpu       virtio-gpu-gl-pci, hvf, cocoa,gl=on, virgl, try-omarchy kit qemu in " .. shared.gpudir ..
+            " (--2d: virtio-gpu-pci and llvmpipe on " .. (shared.qemu_keg(os) and "the keg qemu)" or "the QEMU from PATH)"))
     else
         print("gpu       virtio-gpu-pci, kvm, gtk, sysw renderer, system qemu-system-" .. g.arch)
     end
@@ -111,6 +112,9 @@ on_run(function ()
     end
     print("dotfiles  " .. (shared.dotfiles or "none") .. " -> injected at boot from the payload disk")
     print("log       " .. shared.logfile)
+    if shared.gpu_host(os) and not option.get("2d") and os.isfile(shared.gpu_program()) then
+        program = shared.gpu_program()
+    end
     if program and os.isfile(shared.diskfile) then
         print("run       " .. program .. " " .. table.concat(qemu_args(option, os, qemu_config(option, os, io, program), io), " "))
     end
@@ -118,56 +122,6 @@ end)
 set_menu {
     usage = "xmake doctor",
     description = "Show host, tools, base image, payload disk, overlay and snapshots"
-}
-
-function shared.qemu_install_fork(os, repo)
-    local keg = shared.qemu_keg(os)
-    if not keg then
-        return false
-    end
-    local arch = shared.guest().arch
-    local built = path.join(repo, "build", "qemu-system-" .. arch)
-    local entitlements = path.join(repo, "accel", "hvf", "entitlements.plist")
-    if not os.isfile(built) or not os.isfile(entitlements) then
-        return false
-    end
-    local dest = path.join(keg, "bin", "qemu-system-" .. arch)
-    os.execv("sh", {"-c", string.format([[
-      set -e
-      rm -f %s
-      cp %s %s
-      chmod 755 %s
-      xattr -c %s
-    ]], dest, built, dest, dest, dest)})
-    shared.qemu_patch(os, keg, dest)
-    os.execv("sh", {"-c", string.format([[
-      set -e
-      install_name_tool -add_rpath %s %s 2>/dev/null || true
-      codesign --force --sign - --entitlements %s %s
-    ]], path.join(keg, "opt/libangle/lib"), dest, entitlements, dest)})
-    print("installed " .. dest)
-    return true
-end
-
-task("vminstall")
-on_run(function ()
-    import("core.base.option")
-    local repo = option.get("repo") or os.getenv("HOME") .. "/qemu"
-    local keg = shared.qemu_keg(os)
-    if not keg then
-        os.raise("no arm64 tahoe keg on this host")
-    end
-    if not shared.qemu_install_fork(os, repo) then
-        os.raise("missing " .. path.join(repo, "build", "qemu-system-" .. shared.guest().arch) ..
-            ", build the fork first (ninja in its build dir)")
-    end
-end)
-set_menu {
-    usage = "xmake vminstall [-r|--repo=DIR]",
-    description = "Install the fork build into the qemu-virgl keg (rpath + hvf entitlement fix)",
-    options = {
-        {"r", "repo", "kv", nil, "Fork repo with build/qemu-system-<arch>, defaults to ~/qemu"}
-    }
 }
 
 function shared.host_display(os, io)
@@ -208,10 +162,8 @@ on_run(function ()
         print("guest image in " .. (os.time() - started) .. "s")
         print("first boot: the guest installs its packages, the login screen appears after that")
     end
-    if option.get("gl") and not option.get("headless") then
-        shared.qemu_fetch(os, io)
-    end
-    local program = shared.qemu_program(os, find_tool)
+    local gpu = not option.get("headless") and not option.get("2d") and shared.gpu_host(os)
+    local program = gpu and shared.gpu_fetch(os, io) or shared.qemu_program(os, find_tool)
     if not program then
         os.raise("qemu-system-" .. g.arch .. " is not in PATH")
     end
@@ -222,7 +174,7 @@ on_run(function ()
         for _, value in ipairs(argv) do
             print("arg=" .. value)
         end
-        for key, value in pairs(shared.qemu_env(os) or {}) do
+        for key, value in pairs(not gpu and shared.qemu_env(os) or {}) do
             print("env=" .. key .. "=" .. value)
         end
         return
@@ -236,7 +188,7 @@ on_run(function ()
         return
     end
     print("booting " .. g.arch .. " with " .. config.cores .. " cores, " .. config.mem .. ", log " .. shared.logfile)
-    os.execv(program, argv, {envs = shared.qemu_env(os) or {}})
+    os.execv(program, argv, {envs = not gpu and shared.qemu_env(os) or {}})
 end)
 set_menu {
     usage = "xmake vm [options]",
@@ -248,7 +200,7 @@ set_menu {
         {nil, "cpus", "kv", nil, "Guest cores, defaults to the saved setting"},
         {nil, "print-args", "k", nil, "Print program= and arg= lines for the launcher to run"},
         {nil, "fresh", "k", nil, "Drop the disk overlay and start again from the base image"},
-        {nil, "gl", "k", nil, "Try the virgl bottle and virtio-gpu-gl (the cocoa GL scanout is unfinished)"},
+        {nil, "2d", "k", nil, "Render in software with virtio-gpu-pci and llvmpipe instead of virgl"},
         {nil, "headless", "k", nil, "Run in the background with no window; use xmake vmstatus, shot, vmstop"},
         {"n", "dry-run", "k", nil, "Print the QEMU command instead of running it"}
     }
