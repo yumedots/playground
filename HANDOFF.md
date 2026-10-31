@@ -29,16 +29,31 @@ fallback on the keg QEMU.
 
 ## Benchmark
 
-M3 Pro, 8 vCPUs, 8 GB, 20 s samples. Load is two foot windows with workspace
-switching every 0.2 s. Host GPU is `ioreg` "Device Utilization %" for the
-whole machine, 14% with no VM running.
+`scripts/bench.sh` against a running `xmake vm` (it brings the window to the
+front, since macOS throttles an occluded QEMU window to about 11 FPS). M3 Pro,
+8 vCPUs, 8 GB, 2144x1206 at 120 Hz, 15 s per scenario. Host GPU is `ioreg`
+"Device Utilization %" for the whole machine, 10-14% with no VM running.
 
-| Path | Load | Host QEMU CPU | Guest Hyprland CPU | Host GPU |
+| Scenario | Before (nested, userspace GIC) | Now | Host GPU now | Notes |
 | --- | --- | --- | --- | --- |
-| GL (default) | idle | 1% | ~0% | 15% |
-| GL (default) | switching | 18% | 3.2% | 21% |
-| 2D (`--2d`) | idle | 1% | ~0% | 14% |
-| 2D (`--2d`) | switching | 497% | 463% | 16% |
+| idle | 1% | 1% | 10% | |
+| workspaces, 3 foot, every 0.2 s | 20% | 14% | 22% | Hyprland 4% in guest |
+| es2gears | 18%, 106 FPS | 13%, 120 FPS | 29% | |
+| glmark2 build | 21%, 522 FPS | 24%, 1367 FPS | 49% | |
+| foot flooding `seq` | 407% | ~400% | 30% | guest pty work, not display |
+| 2D `--2d`, workspaces | 497% | not rerun | 16% | llvmpipe |
+
+What moved it:
+
+- Nested virtualization off by default (`nested=on` in `state/settings`
+  brings it back for guest `/dev/kvm`). Under EL2 every guest exit is
+  emulated by Hypervisor.framework: gears used 22% and glmark2 34% with it.
+- `-accel hvf,kernel-irqchip=on`: the in-kernel GICv3 cuts the vCPU
+  exits, which are most of the workspace switching cost (20% to 14%).
+- `-cpu host,pmu=off`, matching try-omarchy.
+- 60 Hz EDID would cut gears to about 10% but halves smoothness; not applied.
+- 4 vCPUs instead of 8 gives the same display numbers and cuts the flood to
+  323%.
 
 ## Guest access
 
