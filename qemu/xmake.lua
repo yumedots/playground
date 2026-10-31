@@ -120,22 +120,16 @@ set_menu {
     description = "Show host, tools, base image, payload disk, overlay and snapshots"
 }
 
-task("vminstall")
-on_run(function ()
-    import("core.base.option")
-    local repo = option.get("repo") or os.getenv("HOME") .. "/qemu"
+function shared.qemu_install_fork(os, repo)
     local keg = shared.qemu_keg(os)
     if not keg then
-        os.raise("no arm64 tahoe keg on this host")
+        return false
     end
     local arch = shared.guest().arch
     local built = path.join(repo, "build", "qemu-system-" .. arch)
-    if not os.isfile(built) then
-        os.raise("missing " .. built .. ", build the fork first (ninja in its build dir)")
-    end
     local entitlements = path.join(repo, "accel", "hvf", "entitlements.plist")
-    if not os.isfile(entitlements) then
-        os.raise("missing " .. entitlements)
+    if not os.isfile(built) or not os.isfile(entitlements) then
+        return false
     end
     local dest = path.join(keg, "bin", "qemu-system-" .. arch)
     os.execv("sh", {"-c", string.format([[
@@ -152,6 +146,21 @@ on_run(function ()
       codesign --force --sign - --entitlements %s %s
     ]], path.join(keg, "opt/libangle/lib"), dest, entitlements, dest)})
     print("installed " .. dest)
+    return true
+end
+
+task("vminstall")
+on_run(function ()
+    import("core.base.option")
+    local repo = option.get("repo") or os.getenv("HOME") .. "/qemu"
+    local keg = shared.qemu_keg(os)
+    if not keg then
+        os.raise("no arm64 tahoe keg on this host")
+    end
+    if not shared.qemu_install_fork(os, repo) then
+        os.raise("missing " .. path.join(repo, "build", "qemu-system-" .. shared.guest().arch) ..
+            ", build the fork first (ninja in its build dir)")
+    end
 end)
 set_menu {
     usage = "xmake vminstall [-r|--repo=DIR]",

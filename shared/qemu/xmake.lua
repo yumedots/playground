@@ -214,7 +214,6 @@ function shared.qemu_fetch(os, io, force)
         if actual ~= want then
             os.raise("bottle mismatch " .. bottle.file .. ": want " .. want .. ", got " .. actual)
         end
-        os.rm(archive)
         table.insert(lines, actual .. "  " .. bottle.file)
         local dest = bottle.opt and path.join(keg, "opt", bottle.opt) or keg
         if bottle.opt and os.isdir(dest) then
@@ -222,6 +221,7 @@ function shared.qemu_fetch(os, io, force)
         end
         os.mkdir(dest)
         os.execv("tar", {"-xzf", archive, "-C", dest, "--strip-components=2"})
+        os.rm(archive)
     end
     for _, binary in ipairs(shared.qemu_images(os, keg)) do
         shared.qemu_patch(os, keg, binary)
@@ -243,6 +243,10 @@ function shared.qemu_fetch(os, io, force)
         end
     end
     io.writefile(stamp, table.concat(lines, "\n") .. "\n")
+    local repo = os.getenv("TRY_QEMU_REPO") or (os.getenv("HOME") or "") .. "/qemu"
+    if shared.qemu_install_fork and shared.qemu_install_fork(os, repo) then
+        print("reinstalled the fork build after the bottle extraction")
+    end
     print("qemu-virgl ready " .. path.join(keg, "bin/qemu-system-" .. shared.guest().arch))
     return keg
 end
