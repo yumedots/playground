@@ -55,7 +55,7 @@ function shared.settings(os, io)
     local gigabytes = math.floor((os.meminfo("totalsize") or 0) / 1024)
     local values = {
         cores = tostring(math.min(8, os.cpuinfo().ncpu)),
-        mem = gigabytes >= 16 and "8G" or "4G",
+        mem = gigabytes >= 32 and "8G" or "4G",
         audio = os.host() == "macosx" and "on" or "off",
         nested = "off"
     }
